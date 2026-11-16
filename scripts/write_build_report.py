@@ -55,6 +55,7 @@ def main():
     config_path = args.out_dir / ".config"
     config = read_config(config_path)
     validate_config(config, args.device, profile, args.require_hmbird)
+    compatibility_path = args.bundle_dir / "root_compatibility_patches.json"
     # Validate the compiler command, not just the ZIP name or patched source text.
     command_paths = list((args.out_dir / "drivers" / "kernelsu").rglob("*.cmd"))
     version_pattern = rf"-DKSU_VERSION={profile['version_code']}(?:\s|$)"
@@ -93,6 +94,8 @@ def main():
         "stock_module_abi": "not_verified_against_stock_modules",
         "device_boot_test": "not_performed", "validation_files": copied_files,
         "optional_patches": json.loads((args.bundle_dir / "optional_patches.json").read_text()),
+        "root_compatibility_patches": (json.loads(compatibility_path.read_text())
+                                       if compatibility_path.exists() else []),
     }
     manifest_text = json.dumps(manifest, indent=2) + "\n"
     (args.report_dir / "build_manifest.json").write_text(manifest_text, encoding="utf-8")

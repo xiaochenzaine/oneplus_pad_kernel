@@ -127,7 +127,16 @@ def lock_makefile(makefile_text, profile):
     return locked_text
 
 
+def apply_source_patch(source_dir, patch_name):
+    patch_path = config_path.parents[1] / "patches" / patch_name
+    command = ["patch", "--batch", "--forward", "--fuzz=0", "-p1", "-i", str(patch_path)]
+    subprocess.run(command + ["--dry-run"], cwd=source_dir, check=True)
+    subprocess.run(command, cwd=source_dir, check=True)
+    return {"file": patch_name, "sha256": file_sha256(patch_path), "target": source_dir.name}
+
+
 def integrate_source(profile, platform_dir):
+    compatibility_patches = []
     source_dir = platform_dir / "KernelSU"  # Existing upstream integration interface.
     checkout_commit(f"https://github.com/{profile['repository']}.git",
                     profile["builtin_commit"], source_dir)
@@ -138,6 +147,11 @@ def integrate_source(profile, platform_dir):
                                 (source_dir / "kernel" / "manager").glob("*.[ch]"))
     if profile["certificate_sha256"] not in signature_source:
         raise ValueError("Upstream builtin does not trust the locked official certificate")
+    if profile["kmi"] == "android16-6.12":
+        compatibility_patches.append(apply_source_patch(
+            platform_dir / "common", "pad_3_pro_lsm_count.patch"))
+        if profile["source_layout"] == "makefile":
+            compatibility_patches.append(apply_source_patch(source_dir, "ultra_6_12_lsm.patch"))
     drivers_dir = platform_dir / "common" / "drivers"
     (drivers_dir / "kernelsu").symlink_to("../../KernelSU/kernel", target_is_directory=True)
     with (drivers_dir / "Makefile").open("a") as target:
@@ -154,6 +168,7 @@ def integrate_source(profile, platform_dir):
     header = (susfs_dir / "kernel_patches" / "include" / "linux" / "susfs.h").read_text()
     if f'#define SUSFS_VERSION "{profile["susfs"]["version"]}"' not in header:
         raise ValueError("SUSFS header version does not match the lock")
+    return compatibility_patches
 
 
 def write_env(profile):
@@ -186,7 +201,9 @@ def main():
         verify_apk(args.output_dir / profile["apk"]["name"], profile)
         if args.platform_dir is None:
             parser.error("install requires --platform-dir")
-        integrate_source(profile, args.platform_dir.resolve())
+        compatibility_patches = integrate_source(profile, args.platform_dir.resolve())
+        (args.output_dir / "root_compatibility_patches.json").write_text(
+            json.dumps(compatibility_patches, indent=2) + "\n", encoding="utf-8")
     write_env(profile)
     print(f"Verified {args.profile}: {profile['version_name']} ({profile['version_code']})")
 
