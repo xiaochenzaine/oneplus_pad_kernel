@@ -2,6 +2,7 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -19,6 +20,8 @@ def load_script(name):
 
 prepare_sukisu = load_script("prepare_sukisu")
 optional_patches = load_script("apply_optional_patches")
+sys.modules["prepare_sukisu"] = prepare_sukisu
+build_report = load_script("write_build_report")
 
 
 class test_sukisu_profiles(unittest.TestCase):
@@ -99,6 +102,27 @@ class test_sukisu_profiles(unittest.TestCase):
                 optional_patches.apply_patch(Path("kernel"), "adios_6_6.patch", 1)
             self.assertEqual(run.call_count, 1)
             self.assertIn("--dry-run", run.call_args.args[0])
+
+    def test_report_rejects_disabled_seccomp_filters(self):
+        config = {"CONFIG_KSU": "y", "CONFIG_KSU_SUSFS": "y", "CONFIG_SECCOMP": "y",
+                  "CONFIG_SECCOMP_FILTER": "n", "CONFIG_STACKPROTECTOR_STRONG": "y"}
+        with self.assertRaisesRegex(ValueError, "SECCOMP_FILTER"):
+            build_report.validate_config(config, "oneplus_pad_2_pro", self.profile)
+
+    def test_report_rejects_incompatible_a15_tls_layout(self):
+        config = {"CONFIG_KSU": "y", "CONFIG_KSU_SUSFS": "y", "CONFIG_SECCOMP": "y",
+                  "CONFIG_SECCOMP_FILTER": "y", "CONFIG_STACKPROTECTOR_STRONG": "y",
+                  "CONFIG_TLS_STATS": "y"}
+        with self.assertRaisesRegex(ValueError, "TLS_STATS"):
+            build_report.validate_config(config, "oneplus_pad_2_pro", self.profile)
+
+    def test_report_rejects_resukisu_with_multiple_manager_support(self):
+        profile = prepare_sukisu.load_profile("resukisu_35203", "android15-6.6")
+        config = {"CONFIG_KSU": "y", "CONFIG_KSU_SUSFS": "y", "CONFIG_SECCOMP": "y",
+                  "CONFIG_SECCOMP_FILTER": "y", "CONFIG_STACKPROTECTOR_STRONG": "y",
+                  "CONFIG_KSU_MULTI_MANAGER_SUPPORT": "y"}
+        with self.assertRaisesRegex(ValueError, "multi-manager"):
+            build_report.validate_config(config, "oneplus_pad_2_pro", profile)
 
 
 if __name__ == "__main__":

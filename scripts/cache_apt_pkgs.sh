@@ -53,11 +53,12 @@ while IFS= read -r pkg; do
   [ -z "$pkg" ] && continue
   dpkg -s "$pkg" >/dev/null 2>&1 || continue
   tar_path="$CACHE_DIR/${pkg}.tar"
-  tar -cf "$tar_path" -C / -T <(
-    dpkg -L "$pkg" | while IFS= read -r f; do
-      [ -f "$f" ] && echo "${f#/}"
-    done
-  )
+  dpkg -L "$pkg" | while IFS= read -r f; do
+    if [ -f "$f" ]; then
+      echo "${f#/}"
+    fi
+  done | sudo tar -cf "$tar_path" -C / -T -
+  sudo chown "$(id -u):$(id -g)" "$tar_path"
   n=$((n+1))
 done <<< "$FULL_SET"
 
