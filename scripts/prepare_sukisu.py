@@ -119,7 +119,12 @@ def lock_makefile(makefile_text, profile):
         package = re.search(r"^KSU_PACKAGE_NAME \?= (\S+)$", makefile_text, re.MULTILINE)
         if not package or package.group(1) != profile["package"]:
             raise ValueError("Builtin source has a different manager package name")
-    return makefile_text[:start] + fixed_block + makefile_text[end:]
+    locked_text = makefile_text[:start] + fixed_block + makefile_text[end:]
+    if profile["source_layout"] == "kbuild":
+        # SELinux generates these headers in O= output trees, not in srctree.
+        locked_text += ("\nccflags-y += -I$(objtree)/security/selinux "
+                        "-I$(objtree)/security/selinux/include\n")
+    return locked_text
 
 
 def integrate_source(profile, platform_dir):

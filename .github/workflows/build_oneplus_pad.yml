@@ -1111,6 +1111,8 @@ jobs:
           make O=out "${MAKE_ARGS[@]}" gki_defconfig --no-print-directory
 
           make O=out "${MAKE_ARGS[@]}" olddefconfig --no-print-directory
+          # Generate SELinux headers before the root driver's parallel compilation.
+          make -j"$(nproc --all)" O=out "${MAKE_ARGS[@]}" security/selinux/
           make -j"$(nproc --all)" O=out "${MAKE_ARGS[@]}"
           ccache -s
 
