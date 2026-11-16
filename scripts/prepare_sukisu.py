@@ -151,7 +151,7 @@ def integrate_source(profile, platform_dir):
         compatibility_patches.append(apply_source_patch(
             platform_dir / "common", "pad_3_pro_lsm_count.patch"))
         if profile["source_layout"] == "makefile":
-            compatibility_patches.append(apply_source_patch(source_dir, "ultra_6_12_lsm.patch"))
+            compatibility_patches.append(apply_source_patch(source_dir, "ultra_6_12_compat.patch"))
     drivers_dir = platform_dir / "common" / "drivers"
     (drivers_dir / "kernelsu").symlink_to("../../KernelSU/kernel", target_is_directory=True)
     with (drivers_dir / "Makefile").open("a") as target:
