@@ -1,0 +1,70 @@
+{
+  "susfs_repository": "https://gitlab.com/simonpunk/susfs4ksu.git",
+  "profiles": {
+    "ultra_41184": {
+      "main_commit": "ffb4837561e5a9d723b77199b130adf864da1b9d",
+      "builtin_commit": "f9aa2fec23c3f4a06a935f69dc04cb85b261e7f3",
+      "main_commit_count": 3999,
+      "version_base": 40000,
+      "version_offset": 2815,
+      "version_code": 41184,
+      "version_name": "v4.3.0-r2",
+      "package": "com.sukisu.ultra",
+      "certificate_sha256": "947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef",
+      "apk": {
+        "name": "SukiSU_v4.3.0-r2_41184-release.apk",
+        "sha256": "4d8561867a78d18e182bb93a600db1420aa478069b49726e3f7507c08deda254",
+        "artifact_id": 14161074584,
+        "run_id": 43712713571,
+        "upstream_artifact_url": "https://github.com/SukiSU-Nova/SukiSU-Nova/actions/runs/43712713571",
+        "url": "https://github.com/xiaochenzaine/oneplus_pad_kernel/releases/download/official_manager_apks_2026_11_17/SukiSU_v4.3.0-r2_41184-release.apk"
+      },
+      "repository": "SukiSU-Nova/SukiSU-Nova",
+      "source_layout": "makefile",
+      "display_name": "SukiSU Ultra",
+      "susfs": {
+        "android15-6.6": {
+          "commit": "f98f08223bbf469cc0a1542166383d253557fc32",
+          "version": "v2.4.0"
+        },
+        "android16-6.12": {
+          "commit": "9b0b13f069673b9b07b713a5c66977de4d62b175",
+          "version": "v2.4.0"
+        }
+      }
+    },
+    "resukisu_35203": {
+      "repository": "Baka-SU/BakaSU",
+      "source_layout": "kbuild",
+      "display_name": "ReSukiSU",
+      "main_commit": "8770c7e324a22895703c4916b8a16520e0b81c79",
+      "builtin_commit": "8770c7e324a22895703c4916b8a16520e0b81c79",
+      "main_commit_count": 4503,
+      "version_base": 30000,
+      "version_offset": -700,
+      "version_code": 35203,
+      "version_name": "v4.2.0-rc3",
+      "package": "com.resukisu.resukisu",
+      "certificate_sha256": "d3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64",
+      "apk": {
+        "name": "ReSukiSU_v4.2.0-rc3_35203-arm64-v8a-release.apk",
+        "sha256": "8c760adde1a256202e9b6e7c0523219f0b7af71c4f5306bd3b564875d8d70dad",
+        "artifact_name": "Manager-release",
+        "artifact_id": 11294743543,
+        "run_id": 37180105212,
+        "url": "https://github.com/xiaochenzaine/oneplus_pad_kernel/releases/download/official_manager_apks_2026_11_17/ReSukiSU_v4.2.0-rc3_35203-arm64-v8a-release.apk",
+        "upstream_artifact_url": "https://github.com/Baka-SU/BakaSU/actions/runs/37180105212"
+      },
+      "susfs": {
+        "android15-6.6": {
+          "commit": "a0f9c59e2243f8a5db955f4ad1686d5e0ad26e1a",
+          "version": "v2.3.0"
+        },
+        "android16-6.12": {
+          "commit": "b213c54126fb243595ce7876e91d84d6e0861fec",
+          "version": "v2.3.0"
+        }
+      }
+    }
+  }
+}

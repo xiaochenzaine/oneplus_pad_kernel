@@ -11,39 +11,40 @@ on:
           - 一加Pad 2 Pro A15
           - 一加Pad 2 Pro A16
           - 一加Pad 3 Pro A16
-      SUSFS_CI:
+      sukisu_profile:
         type: choice
-        description: "SUSFS模块下载调用方向//SUSFS module branch"
+        description: "Root 与官方管理器配套版本//Paired root and official manager"
         required: true
-        default: N/A
+        default: resukisu_35203
         options:
-          - CI
-          - Release
-          - N/A
+          - resukisu_35203
+          - ultra_41184
+      adios:
+        type: boolean
+        description: "编入 ADIOS I/O 调度（保留原默认调度）//Optional ADIOS I/O scheduler"
+        default: false
+      zstd_update:
+        type: boolean
+        description: "升级 ZSTD 1.5.7（仅 Pad 2 Pro A15）//ZSTD 1.5.7 (Pad 2 Pro A15 only)"
+        default: false
+      display_fix:
+        type: boolean
+        description: "显示兼容补丁（仅 Pad 2 Pro A16/6.6.118）//Optional display fix (Pad 2 Pro A16 only)"
+        default: false
       KPM:
         type: choice
         description: "内核模块实现方式//Kernel module implementation method"
         required: true
-        default: KPM
+        default: N/A
         options:
           - KPM
           - KPN
           - N/A
-      SUSFS_META:
-        type: string
-        description: "回退SUSFS(输入哈希或次数或-1关闭)//Rollback SUSFS (Enter commit hash, count, or -1 to disable)"
-        required: false
-        default: ""
       BUILD_TIME:
         type: string
         description: "自定义构建时间(输入F使用UTCT或-1关闭)//Custom build time (Enter F to use UTCT, or -1 to disable)"
         required: false
         default: "Wed Jul 15 11:18:49 UTC 2026"
-      KSU_META:
-        type: string
-        description: "管理器分支名(必填)/内置分支名(必填)/自定义版本标识(留空不修改)/回退分支提交哈希版本(留空不修改)//Manager Branch name (Required) / Builtin branch name (Required) / Custom version identifier (Leave blank to not modify) / Rollback branch commit hash version (Leave blank to not modify)"
-        required: false
-        default: "main/builtin/Numbersf/"
       LZ4_UPDATE:
         type: boolean
         description: "是否升级LZ4到上游最新？//Upgrade LZ4 to the latest upstream?"
@@ -101,11 +102,6 @@ on:
       RE_KERNEL:
         type: boolean
         description: "是否添加Re-Kernel？//Add Re-Kernel?"
-        required: true
-        default: false
-      SUSFS_DEV:
-        type: boolean
-        description: "是否拉取SUSFS-DEV分支？//Pull the SUSFS-DEV branch?"
         required: true
         default: false
       SPACE_NOCLEAN:
@@ -169,18 +165,12 @@ jobs:
           echo "Selected ANDROID_VERSION: ${{ env.ANDROID_VERSION }}"
           echo "Selected BUILD_METHOD: ${{ env.BUILD_METHOD }}"
           echo "Selected FILE: ${{ env.FILE }}"
-          echo "Selected SUSFS_CI: ${{ github.event.inputs.SUSFS_CI }}"
-          if [ "${{ github.event.inputs.SUSFS_CI }}" != "N/A" ]; then
-            echo "::warning title=SUSFS Not Required::当前管理器已自带附加模块，无需启用 SUSFS 模块，强制启用可能导致不开机。"
-          fi
+          echo "Selected root: ${{ inputs.sukisu_profile }}"
           echo "Selected KPM: ${{ github.event.inputs.KPM }}"
-          echo "Custom SUSFS_META: ${{ github.event.inputs.SUSFS_META }}"
-          echo "Custom KSU_META: ${{ github.event.inputs.KSU_META }}"
           echo "Selected ZRAM: ${{ github.event.inputs.ZRAM }}"
           echo "Selected LSM_BBG: ${{ github.event.inputs.LSM_BBG }}"
           echo "Selected NETFILTER: ${{ github.event.inputs.NETFILTER }}"
           echo "Selected CCM: ${{ github.event.inputs.CCM }}"
-          echo "Selected SUSFS_DEV: ${{ github.event.inputs.SUSFS_DEV }}"
           echo "Selected FAST_BUILD: ${{ github.event.inputs.FAST_BUILD }}"
           echo "Selected SCHED_HMBIRD: ${{ github.event.inputs.SCHED_HMBIRD }}"
           echo "Selected UNICODE_BYPASS: ${{ github.event.inputs.UNICODE_BYPASS }}"
@@ -228,8 +218,20 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          export APT_PACKAGES="python3 git curl libelf-dev build-essential flex bison libssl-dev libncurses-dev lz4 zlib1g-dev libxml2-utils rsync unzip gawk dos2unix kmod libdw-dev elfutils dwarves"
+          export APT_PACKAGES="python3 git curl libelf-dev build-essential flex bison libssl-dev libncurses-dev lz4 zlib1g-dev libxml2-utils rsync unzip gawk dos2unix kmod libdw-dev elfutils dwarves aapt apksigner default-jre-headless"
           bash "$GITHUB_WORKSPACE/kernel_workspace/action_build/scripts/cache_apt_pkgs.sh" ~/.apt-pkg-cache
+
+      - name: Prepare Paired Official Manager
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          selected_profile: ${{ inputs.sukisu_profile }}
+        run: |
+          if [[ "$selected_profile" == "resukisu_35203" && "${{ inputs.KPM }}" != "N/A" ]]; then
+            echo "::error::ReSukiSU does not provide the Ultra KPM implementation. Select KPM=N/A."
+            exit 1
+          fi
+          python3 scripts/prepare_sukisu.py prepare --profile "$selected_profile" \
+            --kmi "$pad_expected_kmi" --output-dir "$GITHUB_WORKSPACE/kernel_workspace/manager_bundle"
 
       - name: Setup Kotlin
         run: |
@@ -492,149 +494,55 @@ jobs:
             chmod +x "$f"
           done
 
-      - name: Add SukiSU Ultra
-        run: |
-          cd kernel_workspace/kernel_platform
-          KSU_META="${{ github.event.inputs.KSU_META }}"
-
-          # 必须包含两个分隔符（至少四个字段）
-          if [[ "$(grep -o '/' <<< "$KSU_META" | wc -l)" -lt 3 ]]; then
-            echo "错误: KSU_META 参数缺少必要的分隔符 '/'，格式应为: 管理器分支名/内置分支名/自定义标识(可省略)/提交hash(可省略)"
-            exit 10
-          fi
-
-          # 解析字段：分支 / 自定义标识 / 手动 hash
-          IFS='/' read -r KSU_MANAGER_BRANCH KSU_BUILTIN_BRANCH KSU_CUSTOM_TAG MANUAL_HASH <<< "$KSU_META"
-          echo "KSU_MANAGER_BRANCH=$KSU_MANAGER_BRANCH" >> $GITHUB_ENV
-          echo "KSU_BUILTIN_BRANCH=$KSU_BUILTIN_BRANCH" >> $GITHUB_ENV
-          [[ -n "$KSU_CUSTOM_TAG" ]] && echo "自定义版本标识: $KSU_CUSTOM_TAG" || echo "自定义版本标识: 未启用"
-          [[ -n "$MANUAL_HASH" ]] && echo "手动指定 hash: $MANUAL_HASH" || echo "手动指定 hash: 未启用"
-
-          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/${KSU_MANAGER_BRANCH}/kernel/setup.sh" | bash -s "$KSU_BUILTIN_BRANCH"
-          cd ./KernelSU
-
-          # 如果指定了手动 hash，就切换到该提交
-          if [[ -n "$MANUAL_HASH" ]]; then
-            git fetch origin "$KSU_BUILTIN_BRANCH" --depth=50
-            git checkout "$MANUAL_HASH"
-            SHORT_HASH=${MANUAL_HASH:0:8}
-          fi
-
-          KSU_VERSION_TAG=$(curl -fsSL https://api.github.com/repos/SukiSU-Ultra/SukiSU-Ultra/releases/latest \
-            | grep '"tag_name":' | sed -E 's/.*"v?([^"]+)".*/\1/')
-          if [[ -z "$KSU_VERSION_TAG" || "$(printf '%s\n' "$KSU_VERSION_TAG" "3.1.7" | sort -V | head -n1)" != "3.1.7" ]]; then
-            KSU_VERSION_TAG="3.1.7"
-          fi
-          echo "KSU_VERSION_TAG=$KSU_VERSION_TAG" >> $GITHUB_ENV
-
-          GIT_HASH=$(git rev-parse --short HEAD)
-          echo "GIT_HASH=$GIT_HASH"
-
-          # 组装版本号
-          if [[ -n "$MANUAL_HASH" ]]; then
-            USE_HASH="$SHORT_HASH"
-          else
-            USE_HASH="$GIT_HASH"
-          fi
-          if [[ -z "$KSU_CUSTOM_TAG" ]]; then
-            VERSION_FULL="v$KSU_VERSION_TAG-$USE_HASH@$KSU_BUILTIN_BRANCH"
-          else
-            VERSION_FULL="v$KSU_VERSION_TAG-$KSU_CUSTOM_TAG@$KSU_BUILTIN_BRANCH[$USE_HASH]"
-          fi
-
-          ESC_VERSION_FULL=$(printf '%s' "$VERSION_FULL" | sed 's/[&|\\/]/\\&/g')
-          ESC_KSU_VERSION_TAG=$(printf '%s' "$KSU_VERSION_TAG" | sed 's/[&|\\/]/\\&/g')
-
-          if grep -q '^KSU_VERSION_FULL := ' kernel/Makefile; then
-            sed -i "s|^KSU_VERSION_FULL := .*|KSU_VERSION_FULL := $ESC_VERSION_FULL|" kernel/Makefile
-          else
-            awk -v full="$VERSION_FULL" '
-              /^REPO_OWNER :=/ && !done {
-                print
-                print ""
-                print "KSU_VERSION_FULL := " full
-                done=1
-                next
-              }
-              { print }
-            ' kernel/Makefile > kernel/Makefile.tmp && mv kernel/Makefile.tmp kernel/Makefile
-          fi
-
-          if grep -q '^KSU_VERSION_API := ' kernel/Makefile; then
-            sed -i "s|^KSU_VERSION_API := .*|KSU_VERSION_API := $ESC_KSU_VERSION_TAG|" kernel/Makefile
-          fi
-
-          KSU_VERSION=$(expr $(git rev-list --count "$KSU_MANAGER_BRANCH" 2>/dev/null || echo 13000) + 37185)
-          echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
-
-          echo "::group::最终 Makefile 中版本信息及部分调试结果预览"
-          grep -nE '^(REPO_OWNER|REPO_NAME|REPO_BRANCH|KSU_VERSION_API|KSU_VERSION_FULL|VERSION_TAG|GIT_BIN|CURL_BIN)' kernel/Makefile
-          echo "::endgroup::"
-
-      - name: Apply Patches SukiSU Ultra
+      - name: Install Paired Root Source
         env:
-          FILE: ${{ env.FILE }}
+          selected_profile: ${{ inputs.sukisu_profile }}
+        run: |
+          python3 scripts/prepare_sukisu.py install --profile "$selected_profile" \
+            --kmi "$KMI" --output-dir "$GITHUB_WORKSPACE/kernel_workspace/manager_bundle" \
+            --platform-dir "$GITHUB_WORKSPACE/kernel_workspace/kernel_platform"
+
+      - name: Apply Paired SUSFS
         run: |
           cd kernel_workspace
-          if [ "${{ github.event.inputs.SUSFS_META }}" != "-1" ]; then
-            SUSFS_META="${{ github.event.inputs.SUSFS_META }}"
-            git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-${{ env.KANDROID_VERSION }}-${{ env.KERNEL_VERSION }}${{ github.event.inputs.SUSFS_DEV == 'true' && '-dev' || '' }}
-            cd susfs4ksu
-            if [ -n "$SUSFS_META" ]; then
-              if [[ "$SUSFS_META" =~ ^[0-9]+$ ]]; then
-                git checkout HEAD~$SUSFS_META
-              else
-                git checkout "$SUSFS_META"
-              fi
-            else
-              echo "SUSFS_META 为空，使用最新上游 SUSFS"
-            fi
-            cd ..
-          fi
-          if [ "${{ github.event.inputs.RE_KERNEL }}" = "true" ]; then
+          if [ "${{ inputs.RE_KERNEL }}" = "true" ]; then
             git clone https://github.com/Sakion-Team/Re-Kernel.git
           fi
-          if [ "${{ github.event.inputs.LZ4_UPDATE }}" = "true" ]; then
+          if [ "${{ inputs.LZ4_UPDATE }}" = "true" ]; then
             git clone https://github.com/Numbersf/lz4_oplus.git
           fi
           git clone https://github.com/ShirkNeko/SukiSU_patch.git
           cd kernel_platform
-          if [ "${{ github.event.inputs.SUSFS_META }}" != "-1" ]; then
-            echo "正在拉取susfs补丁"
-            cp ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-${{ env.KANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch ./common/
-            cp ../susfs4ksu/kernel_patches/fs/* ./common/fs/
-            cp ../susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
-          fi
-
-          if [[ "${{ github.event.inputs.ZRAM }}" == 1* ]]; then
-            echo "正在拉取zram补丁"
+          cp "../susfs4ksu/kernel_patches/50_add_susfs_in_gki-${KMI}.patch" ./common/
+          cp ../susfs4ksu/kernel_patches/fs/* ./common/fs/
+          cp ../susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
+          if [[ "${{ inputs.ZRAM }}" == 1* ]]; then
             cp -r ../SukiSU_patch/other/zram/lz4k/include/linux/* ./common/include/linux/
             cp -r ../SukiSU_patch/other/zram/lz4k/lib/* ./common/lib/
             cp -r ../SukiSU_patch/other/zram/lz4k/crypto/* ./common/crypto/
             cp -r ../SukiSU_patch/other/zram/lz4k_oplus ./common/lib/
           fi
-
-          cd ./common
-
-          if [ "${{ github.event.inputs.SUSFS_META }}" != "-1" ]; then
-            kotlin "$GITHUB_WORKSPACE/kernel_workspace/action_build/scripts/SusfsCompat.kts" apply "$PWD"
-          fi
-
-          if [ "${{ github.event.inputs.SUSFS_META }}" != "-1" ]; then
-            echo "正在打susfs补丁"
-            kotlin "$GITHUB_WORKSPACE/kernel_workspace/action_build/scripts/SusfsContext.kts" "$PWD" "$PWD/50_add_susfs_in_gki-${{ env.KANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch"
-            patch -p1 < 50_add_susfs_in_gki-${{ env.KANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
-            echo "susfs_patch完成"
-          fi
-          source $REJ_CHECKER
+          cd common
+          kotlin "$GITHUB_WORKSPACE/scripts/SusfsCompat.kts" apply "$PWD"
+          kotlin "$GITHUB_WORKSPACE/scripts/SusfsContext.kts" "$PWD" "$PWD/50_add_susfs_in_gki-${KMI}.patch"
+          patch --batch --forward -p1 < "50_add_susfs_in_gki-${KMI}.patch"
+          source "$REJ_CHECKER"
           check_rejects .
+          kotlin "$GITHUB_WORKSPACE/scripts/SusfsCompat.kts" postfix "$PWD"
+          kotlin "$GITHUB_WORKSPACE/scripts/SusfsCompat.kts" revert "$PWD"
 
-          if [ "${{ github.event.inputs.SUSFS_META }}" != "-1" ]; then
-            kotlin "$GITHUB_WORKSPACE/kernel_workspace/action_build/scripts/SusfsCompat.kts" postfix "$PWD"
-            kotlin "$GITHUB_WORKSPACE/kernel_workspace/action_build/scripts/SusfsCompat.kts" revert "$PWD"
-          fi
+      - name: Apply Optional Reviewed Patches
+        run: |
+          patch_args=(--kernel-dir "$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common"
+            --device "$FILE" --version "${DKERNEL_VERSION:-$CKERNEL_VERSION}"
+            --report "$GITHUB_WORKSPACE/kernel_workspace/manager_bundle/optional_patches.json")
+          if [[ "${{ inputs.adios }}" == "true" ]]; then patch_args+=(--adios); fi
+          if [[ "${{ inputs.zstd_update }}" == "true" ]]; then patch_args+=(--zstd-update); fi
+          if [[ "${{ inputs.display_fix }}" == "true" ]]; then patch_args+=(--display-fix); fi
+          python3 scripts/apply_optional_patches.py "${patch_args[@]}"
 
-      # OGKI转换GKI，无需修改 dtbo 开机
+      # OGKI conversion is inherited from the Pad build workflow.
+
       - name: Apply Convert HMBIRD_OGKI to HMBIRD_GKI
         if: ${{ (fromJSON(env.VERSIONLEVEL) > 6 || (fromJSON(env.VERSIONLEVEL) == 6 && fromJSON(env.PATCHLEVEL) >= 6)) && github.event.inputs.SCHED_HMBIRD == 'false' }}
         run: |
@@ -849,27 +757,36 @@ jobs:
           set_config "CONFIG_KSU=y"
 
           # KPM配置
-          if [ "${{ github.event.inputs.KPM }}" = "KPM" ] || [ "${{ github.event.inputs.KPM }}" = "N/A" ]; then
+          if [ "${{ github.event.inputs.KPM }}" = "KPM" ]; then
             set_config "CONFIG_KPM=y"
           fi
-          if [ "${{ github.event.inputs.KPM }}" = "KPN" ]; then
+          if [ "${{ github.event.inputs.KPM }}" != "KPM" ]; then
             set_config "CONFIG_KPM=n"
           fi
 
           # SUSFS配置
-          if [ "${{ github.event.inputs.SUSFS_META }}" != "-1" ]; then
-            set_config "CONFIG_KSU_SUSFS=y"
-            set_config "CONFIG_KSU_SUSFS_SUS_PATH=y"
-            set_config "CONFIG_KSU_SUSFS_SUS_MAP=y"
-            set_config "CONFIG_KSU_SUSFS_SUS_MOUNT=y"
-            set_config "CONFIG_KSU_SUSFS_SUS_KSTAT=y"
-            set_config "CONFIG_KSU_SUSFS_SPOOF_UNAME=y"
-            set_config "CONFIG_KSU_SUSFS_ENABLE_LOG=y"
-            set_config "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y"
-            set_config "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y"
-            set_config "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y"
-          else
-            set_config "CONFIG_KSU_SUSFS=n"
+          set_config "CONFIG_KSU_SUSFS=y"
+          set_config "CONFIG_KSU_SUSFS_SUS_PATH=y"
+          set_config "CONFIG_KSU_SUSFS_SUS_MAP=y"
+          set_config "CONFIG_KSU_SUSFS_SUS_MOUNT=y"
+          set_config "CONFIG_KSU_SUSFS_SUS_KSTAT=y"
+          set_config "CONFIG_KSU_SUSFS_SPOOF_UNAME=y"
+          set_config "CONFIG_KSU_SUSFS_ENABLE_LOG=y"
+          set_config "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y"
+          set_config "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y"
+          set_config "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y"
+          set_config "CONFIG_SECCOMP=y"
+          set_config "CONFIG_SECCOMP_FILTER=y"
+          set_config "CONFIG_STACKPROTECTOR_STRONG=y"
+          if [[ "$sukisu_profile" == "resukisu_35203" ]]; then
+            set_config "CONFIG_KSU_TRACEPOINT_HOOK=n"
+            set_config "CONFIG_KSU_MANUAL_HOOK=n"
+            set_config "CONFIG_KSU_MULTI_MANAGER_SUPPORT=n"
+            set_config "CONFIG_KALLSYMS_ALL=y"
+          fi
+          if [[ "${{ inputs.adios }}" == "true" ]]; then
+            set_config "CONFIG_MQ_IOSCHED_ADIOS=y"
+            set_config "CONFIG_MQ_IOSCHED_DEFAULT_ADIOS=n"
           fi
 
           # TMPFS配置*
@@ -932,6 +849,11 @@ jobs:
 
           # IPSET & IPv6_NAT & TTL配置*
           if [ "${{ github.event.inputs.NETFILTER }}" = "true" ]; then
+            set_config "CONFIG_NET_SCH_FQ=y"
+            set_config "CONFIG_NET_SCH_FQ_CODEL=y"
+            set_config "CONFIG_NET_SCH_CAKE=y"
+            set_config "CONFIG_NET_SCH_PIE=y"
+            set_config "CONFIG_NET_SCH_FQ_PIE=y"
             if [[ "$KERNEL_VERSION" != "6.12" ]]; then
               set_config "CONFIG_BPF_STREAM_PARSER=y"
             fi
@@ -1157,7 +1079,7 @@ jobs:
           FPMAP="-ffile-prefix-map=$ROOT_REAL_PATH=."
 
           # KCFLAGS
-          KCFLAGS="$MAP $FPMAP -no-canonical-prefixes -O2 -pipe -Wno-error -fno-stack-protector -D__ANDROID_COMMON_KERNEL__"
+          KCFLAGS="$MAP $FPMAP -no-canonical-prefixes -O2 -pipe -Wno-error -D__ANDROID_COMMON_KERNEL__"
           KCPPFLAGS="$MPMAP"
 
           MAKE_ARGS=(
@@ -1226,6 +1148,7 @@ jobs:
           fi
           if [ -f "$image_path" ]; then
             echo "✅ Image file finally located at: $image_path"
+            echo "kernel_image_path=$image_path" >> "$GITHUB_ENV"
             cp "$image_path" ./AnyKernel3/Image
             cp "$image_path" kernel_workspace/kernel_platform/out/Final-Image-Find/Image
           fi
@@ -1250,58 +1173,34 @@ jobs:
           mv -f oImage Image
           cp Image "${GITHUB_WORKSPACE}/AnyKernel3/Image"
 
-      - name: Download Latest SUSFS Module from CI
-        if: ${{ github.event.inputs.SUSFS_CI == 'CI' && github.event.inputs.SUSFS_META != '-1' }}
-        continue-on-error: true
+      - name: Verify Build and Package Paired Manager
         run: |
-          LATEST_RUN_ID=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/sidex15/susfs4ksu-module/actions/runs?status=success&event=push" | \
-            jq -r '.workflow_runs[] | select(.head_branch == "v1.5.2+") | .id' | head -n 1)
-          if [ -z "$LATEST_RUN_ID" ]; then
-            echo "No successful run found for branch v1.5.2+"
-          else
-            ARTIFACT_URL=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/sidex15/susfs4ksu-module/actions/runs/$LATEST_RUN_ID/artifacts" | jq -r '.artifacts[0].archive_download_url')
-            if [ -n "$ARTIFACT_URL" ]; then
-              curl -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -o ksu_module_susfs_1.5.2+_CI.zip "$ARTIFACT_URL"
-              cp ksu_module_susfs_1.5.2+_CI.zip ./AnyKernel3/
-            else
-              echo "Failed to fetch artifact URL"
+          kernel_out_dir="${kernel_image_path%/arch/arm64/boot/Image}"
+          if [[ ! -f "$kernel_out_dir/.config" ]]; then
+            mapfile -t config_paths < <(find kernel_workspace/kernel_platform -path '*/drivers/kernelsu' -type d -print)
+            if [[ "${#config_paths[@]}" != 1 ]]; then
+              echo "::error::Cannot unambiguously identify compiled kernel configuration"
+              exit 1
             fi
+            kernel_out_dir="${config_paths[0]%/drivers/kernelsu}"
           fi
+          python3 scripts/write_build_report.py --image AnyKernel3/Image --out-dir "$kernel_out_dir" \
+            --platform-dir kernel_workspace/kernel_platform --bundle-dir kernel_workspace/manager_bundle \
+            --package-dir AnyKernel3 --report-dir kernel_validation --device "$FILE"
 
-      - name: Download Latest SUSFS Module from Release
-        if: ${{ github.event.inputs.SUSFS_CI == 'Release' && github.event.inputs.SUSFS_META != '-1' }}
-        continue-on-error: true
-        run: |
-          wget -O ksu_module_susfs_1.5.2+_Release.zip https://github.com/sidex15/ksu_module_susfs/releases/latest/download/ksu_module_susfs_1.5.2+.zip
-          cp ksu_module_susfs_1.5.2+_Release.zip ./AnyKernel3/
+      - name: Upload Official Manager
+        uses: actions/upload-artifact@v7
+        with:
+          name: official_manager_${{ env.sukisu_profile }}
+          path: kernel_workspace/manager_bundle/*.apk
+          if-no-files-found: error
 
-      - name: Download Latest SukiSU-Ultra APK from CI
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          MANAGER_ARTIFACT=Manager
-
-          echo "Using branch: $KSU_MANAGER_BRANCH"
-          echo "Downloading artifact: $MANAGER_ARTIFACT"
-
-          run_id=$(gh api "repos/SukiSU-Ultra/SukiSU-Ultra/actions/workflows/build-manager.yml/runs?branch=$KSU_MANAGER_BRANCH&status=success&event=push&per_page=1" --jq '.workflow_runs[0].id' || echo "")
-
-          if [[ -z "$run_id" ]]; then
-            echo "No successful workflow run found on branch $KSU_MANAGER_BRANCH. Skipping download."
-            exit 0
-          fi
-          artifact_url=$(gh api "repos/SukiSU-Ultra/SukiSU-Ultra/actions/runs/$run_id/artifacts" | jq -r ".artifacts[] | select(.name == \"$MANAGER_ARTIFACT\") | .archive_download_url" | head -n1)
-
-          if [[ -z "$artifact_url" ]]; then
-            echo "No artifact '$MANAGER_ARTIFACT' found in run $run_id. Skipping download."
-            exit 0
-          fi
-          echo "Downloading from: $artifact_url"
-          curl -fL -H "Authorization: token $GITHUB_TOKEN" -o "${MANAGER_ARTIFACT}.zip" "$artifact_url"
-          unzip -j "${MANAGER_ARTIFACT}.zip" "*.apk" -d ./AnyKernel3/
+      - name: Upload Build Validation
+        uses: actions/upload-artifact@v7
+        with:
+          name: kernel_validation_${{ env.FILE }}_${{ env.sukisu_profile }}
+          path: kernel_validation/
+          if-no-files-found: error
 
       - name: Set zip Suffix
         id: suffix
@@ -1311,7 +1210,7 @@ jobs:
       - name: Upload AnyKernel3
         uses: actions/upload-artifact@v7
         with:
-          name: AnyKernel3_SukiSUUltra_${{ env.KSUVER }}_${{ steps.extract_info.outputs.value }}(${{ env.CKERNEL_VERSION }})${{ steps.suffix.outputs.value }}
+          name: AnyKernel3_${{ env.sukisu_name }}_${{ env.KSUVER }}_${{ steps.extract_info.outputs.value }}(${{ env.CKERNEL_VERSION }})${{ steps.suffix.outputs.value }}
           path: ./AnyKernel3/*
 
       - name: Extract and Process ZRAM Module

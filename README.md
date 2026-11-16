@@ -2,7 +2,7 @@
 
 # 一加 Pad Pro 内核构建
 
-仅构建 **一加 Pad 2 Pro** 和 **一加 Pad 3 Pro** 的 SukiSU Ultra 内核。
+仅构建 **一加 Pad 2 Pro** 和 **一加 Pad 3 Pro** 的 ReSukiSU / SukiSU Ultra 内核。
 基于 [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build) 修改；保留上游 [LICENSE](LICENSE)。
 本仓库独立维护，初始适配代码来自 `xiaochenzaine/Action-Build` 的 `bbca1d9f8fcf733e96ba5cda64b1ee1239216033` 提交。
 
@@ -28,7 +28,8 @@ Pad 2 Pro 的安卓 15 和安卓 16 源码都使用 `android15-6.6` GKI 分支�
 1. 打开 Actions → **Build OnePlus Pad Kernels** → **Run workflow**。
 2. 使用默认的 `main` 分支，选择对应机型和系统版本。安卓 15 的 Pad 2 Pro 选择 **一加Pad 2 Pro A15**。
 3. Pad 2 Pro 如需风驰，开启 `SCHED_HMBIRD`；其余功能按需选择。
-4. 构建成功后，在该次运行的 Artifacts 下载 AnyKernel3 包及管理器产物（上游 CI 可用时）。
+4. `sukisu_profile` 选择 ReSukiSU 35203（默认）或 SukiSU Ultra 41184；ReSukiSU 保持 `KPM=N/A`。
+5. 构建成功后，在该次运行的 Artifacts 下载 AnyKernel3 包、官方管理器和校验报告。
 
 构建脚本和本地补丁始终来自本次运行检出的提交，不会自动切换回上游仓库。
 通用选项保留 SukiSU/SUSFS、KPM/KPN、BBG、网络扩展、ZRAM、DroidSpaces、Re-Kernel 等。
@@ -53,10 +54,38 @@ Pad 2 Pro A15 构建会恢复官方源码缺少的完整 `TLS_STATS` 条件编�
 [Android common 7b1f455c](https://android.googlesource.com/kernel/common/+/7b1f455c7143098e61cdd2298639e3c412c285f2)。
 完整补丁见 [pad_2_pro_android15_tls_stats.patch](patches/pad_2_pro_android15_tls_stats.patch)。
 
-## SukiSU 和管理器版本
+## Root 与管理器配套
 
-`KSU_META` 保留上游格式：`管理器分支/内置分支/显示标识/内置分支提交哈希`，默认跟随 `main/builtin`，**没有固定为 40602**。
-显示标识不等于真正的版本回退；构建旧版需要同时匹配 SukiSU、SUSFS 和管理器。
-管理器 APK 下载自上游 CI，本仓库不重新编译或重新签名；CI 包的签名以该上游产物为准。
+| `sukisu_profile` | 内核 Root / 官方管理器 | SUSFS | 默认 |
+| --- | --- | --- | --- |
+| `resukisu_35203` | ReSukiSU v4.2.0-rc3 / 35203（更名前历史版） | 2.3.0 | 是 |
+| `ultra_41184` | SukiSU Ultra v4.3.0-r2 / 41184 | 2.4.0 | 否 |
 
-配置和补丁检查不代表完整编译或实机启动验证。官方公开源码分支也不等于每个系统 OTA 的精确源码。
+两项均面向以上三套设备源码提供构建选项，41184 本身不要求安卓 16。
+安卓系统选择决定 OEM 内核和驱动源码；Root 版本由另一个菜单独立选择。
+ReSukiSU 官方仓库已更名为 BakaSU，本仓库固定其更名前提交，不会自动跟随 BakaSU。
+
+源码提交、上游提交数量、SUSFS 提交、APK 版本/包名/证书和 SHA256 均锁定在
+[config/sukisu_profiles.json](config/sukisu_profiles.json)。构建前下载原始官方 APK，校验任意一项失败即停止。
+APK 镜像保存原始字节，并记录官方 CI 来源；本仓库不重新编译或重新签名管理器。
+ReSukiSU 与 Ultra 使用不同的官方签名，请安装所选实现对应的 APK。
+ReSukiSU 默认关闭多管理器支持，不添加自定义受信任证书。
+
+内核编译期间不会通过移动的 main 分支或最新 Release 动态计算 Root 版本。
+构建后检查真实 .config、编译命令中的版本号、源码提交以及 APK 签名，生成
+build_manifest.json、sha256sums 和独立的 kernel_validation 产物。
+校验要求启用 SECCOMP、SECCOMP_FILTER 和强栈保护；A15 同时检查 TLS_STATS=n。
+
+## 可选改进
+
+- `adios`：编入 ADIOS I/O 调度器，保留原默认 I/O 调度。它与风驰 CPU 调度是不同功能。
+- `zstd_update`：ZSTD 升级至 1.5.7，目前仅开放 Pad 2 Pro A15 / 6.6.57；不改变 ZRAM 大小或默认算法。
+- `display_fix`：仅用于 Pad 2 Pro A16 / 6.6.118 的显示兼容修补。
+- `NETFILTER`：增加 FQ、FQ_CODEL、CAKE、PIE、FQ_PIE 支持，保留系统默认网络队列。
+
+前三项默认关闭。补丁在修改源码前必须通过 dry run，来源与适用范围见
+[patches/sources.md](patches/sources.md)。不适用的机型或源码版本会停止构建。
+ReSukiSU 不提供 Ultra 的 KPM 实现，因此不允许与 KPM / KPN 混选。
+
+构建成功仅代表编译及产物校验通过。报告会单独注明原厂模块 ABI 和实机启动是否已验证；
+官方公开源码分支也不等于每个系统 OTA 的精确源码。
