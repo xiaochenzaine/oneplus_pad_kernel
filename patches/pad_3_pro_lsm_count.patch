@@ -1,0 +1,31 @@
+--- a/include/linux/lsm_count.h
++++ b/include/linux/lsm_count.h
+@@ -102,6 +102,19 @@
+ #define IPE_ENABLED
+ #endif
+ 
++/* Reserve static hook slots for the additional builtin security modules. */
++#if IS_BUILTIN(CONFIG_KSU)
++#define ksu_lsm_enabled 1,
++#else
++#define ksu_lsm_enabled
++#endif
++
++#if IS_BUILTIN(CONFIG_BBG)
++#define bbg_lsm_enabled 1,
++#else
++#define bbg_lsm_enabled
++#endif
++
+ /*
+  *  There is a trailing comma that we need to be accounted for. This is done by
+  *  using a skipped argument in __COUNT_LSMS
+@@ -112,6 +125,8 @@
+ #define MAX_LSM_COUNT			\
+ 	COUNT_LSMS(			\
+ 		CAPABILITIES_ENABLED	\
++		ksu_lsm_enabled		\
++		bbg_lsm_enabled		\
+ 		SELINUX_ENABLED		\
+ 		SMACK_ENABLED		\
+ 		APPARMOR_ENABLED	\
