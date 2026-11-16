@@ -109,6 +109,14 @@ class test_sukisu_profiles(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "SECCOMP_FILTER"):
             build_report.validate_config(config, "oneplus_pad_2_pro", self.profile)
 
+    def test_report_checks_requested_hmbird_in_the_actual_config(self):
+        config = {"CONFIG_KSU": "y", "CONFIG_KSU_SUSFS": "y", "CONFIG_SECCOMP": "y",
+                  "CONFIG_SECCOMP_FILTER": "y", "CONFIG_STACKPROTECTOR_STRONG": "y"}
+        with self.assertRaisesRegex(ValueError, "HMBIRD"):
+            build_report.validate_config(config, "oneplus_pad_2_pro", self.profile, True)
+        config["CONFIG_HMBIRD_SCHED"] = "y"
+        build_report.validate_config(config, "oneplus_pad_2_pro", self.profile, True)
+
     def test_report_rejects_incompatible_a15_tls_layout(self):
         config = {"CONFIG_KSU": "y", "CONFIG_KSU_SUSFS": "y", "CONFIG_SECCOMP": "y",
                   "CONFIG_SECCOMP_FILTER": "y", "CONFIG_STACKPROTECTOR_STRONG": "y",

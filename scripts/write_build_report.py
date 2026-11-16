@@ -16,12 +16,14 @@ def read_config(path):
     return dict(re.findall(r"^(CONFIG_\w+)=(.*)$", path.read_text(), re.MULTILINE))
 
 
-def validate_config(config, device, profile):
+def validate_config(config, device, profile, require_hmbird=False):
     required = {"CONFIG_KSU": "y", "CONFIG_KSU_SUSFS": "y", "CONFIG_SECCOMP": "y",
                 "CONFIG_SECCOMP_FILTER": "y", "CONFIG_STACKPROTECTOR_STRONG": "y"}
     for name, expected in required.items():
         if config.get(name) != expected:
             raise ValueError(f"Actual build configuration requires {name}={expected}")
+    if require_hmbird and config.get("CONFIG_HMBIRD_SCHED") != "y":
+        raise ValueError("Requested HMBIRD is missing from the actual build configuration")
     if device == "oneplus_pad_2_pro" and config.get("CONFIG_TLS_STATS", "n") != "n":
         raise ValueError("Pad 2 Pro A15 requires CONFIG_TLS_STATS=n for the stock layout")
     if profile["source_layout"] == "kbuild":
@@ -44,6 +46,7 @@ def main():
     parser.add_argument("--package-dir", type=Path, required=True)
     parser.add_argument("--report-dir", type=Path, required=True)
     parser.add_argument("--device", required=True)
+    parser.add_argument("--require-hmbird", action="store_true")
     args = parser.parse_args()
     lock_path = args.bundle_dir / "sukisu_lock.json"
     profile = json.loads(lock_path.read_text())
@@ -51,11 +54,13 @@ def main():
     verify_apk(apk_path, profile)
     config_path = args.out_dir / ".config"
     config = read_config(config_path)
-    validate_config(config, args.device, profile)
+    validate_config(config, args.device, profile, args.require_hmbird)
     # Validate the compiler command, not just the ZIP name or patched source text.
     command_paths = list((args.out_dir / "drivers" / "kernelsu").rglob("*.cmd"))
     version_pattern = rf"-DKSU_VERSION={profile['version_code']}(?:\s|$)"
-    if not any(re.search(version_pattern, path.read_text()) for path in command_paths):
+    matching_commands = [path for path in command_paths
+                         if re.search(version_pattern, path.read_text())]
+    if not matching_commands:
         raise ValueError("No compiled SukiSU object command has the selected real version code")
     source_dir = args.platform_dir / "KernelSU"
     if source_revision(source_dir) != profile["builtin_commit"]:
@@ -63,7 +68,11 @@ def main():
     if source_revision(args.platform_dir.parent / "susfs4ksu") != profile["susfs"]["commit"]:
         raise ValueError("SUSFS checkout differs from the selected profile")
     args.report_dir.mkdir(parents=True, exist_ok=True)
-    copied_files = []
+    command_report = args.report_dir / "root_compile_commands"
+    command_report.write_text("\n\n".join(
+        f"# {path.relative_to(args.out_dir).as_posix()}\n{path.read_text()}"
+        for path in sorted(matching_commands)), encoding="utf-8")
+    copied_files = [{"file": command_report.name, "sha256": file_sha256(command_report)}]
     for name in [".config", "Module.symvers", "include/config/kernel.release"]:
         source_path = args.out_dir / name
         if source_path.is_file():
@@ -77,9 +86,10 @@ def main():
         "common_commit": source_revision(args.platform_dir / "common"),
         "image_sha256": file_sha256(args.image), "apk_sha256": file_sha256(apk_path),
         "compiled_version_verified": True,
+        "hmbird_requested": args.require_hmbird,
         "configuration": {key: value for key, value in config.items() if key.startswith(
             ("CONFIG_KSU", "CONFIG_SECCOMP", "CONFIG_STACKPROTECTOR", "CONFIG_TLS_STATS",
-             "CONFIG_MQ_IOSCHED", "CONFIG_DEFAULT_IOSCHED", "CONFIG_NET_SCH"))},
+             "CONFIG_MQ_IOSCHED", "CONFIG_DEFAULT_", "CONFIG_NET_SCH", "CONFIG_HMBIRD"))},
         "stock_module_abi": "not_verified_against_stock_modules",
         "device_boot_test": "not_performed", "validation_files": copied_files,
         "optional_patches": json.loads((args.bundle_dir / "optional_patches.json").read_text()),

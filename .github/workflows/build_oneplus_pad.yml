@@ -1188,9 +1188,11 @@ jobs:
             fi
             kernel_out_dir="${config_paths[0]%/drivers/kernelsu}"
           fi
+          report_args=()
+          if [[ "${{ inputs.SCHED_HMBIRD }}" == "true" ]]; then report_args+=(--require-hmbird); fi
           python3 scripts/write_build_report.py --image AnyKernel3/Image --out-dir "$kernel_out_dir" \
             --platform-dir kernel_workspace/kernel_platform --bundle-dir kernel_workspace/manager_bundle \
-            --package-dir AnyKernel3 --report-dir kernel_validation --device "$FILE"
+            --package-dir AnyKernel3 --report-dir kernel_validation --device "$FILE" "${report_args[@]}"
 
       - name: Upload Official Manager
         uses: actions/upload-artifact@v7
