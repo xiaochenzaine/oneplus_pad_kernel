@@ -88,7 +88,8 @@ def main():
     (args.report_dir / "build_manifest.json").write_text(manifest_text, encoding="utf-8")
     (args.package_dir / "build_manifest.json").write_text(manifest_text, encoding="utf-8")
     shutil.copyfile(apk_path, args.package_dir / apk_path.name)
-    hashes = "\n".join(f"{file_sha256(path)}  {path.name}" for path in sorted(args.package_dir.iterdir())
+    hashes = "\n".join(f"{file_sha256(path)}  {path.relative_to(args.package_dir).as_posix()}"
+                       for path in sorted(args.package_dir.rglob("*"))
                        if path.is_file() and path.name != "sha256sums") + "\n"
     (args.package_dir / "sha256sums").write_text(hashes, encoding="utf-8")
     print(f"Verified compiled {profile['profile']}; stock module ABI and device boot remain untested")

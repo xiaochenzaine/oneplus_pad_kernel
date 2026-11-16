@@ -1,4 +1,5 @@
 name: Build OnePlus Pad Kernels
+run-name: ${{ inputs.FILE }} / ${{ inputs.sukisu_profile }}
 on:
   workflow_dispatch:
     inputs:
@@ -134,6 +135,7 @@ jobs:
         env:
           ROOT_RESERVE_MB: '8192'
           TEMP_RESERVE_MB: '2048'
+          BUILD_MOUNT_PATH: ${{ github.workspace }}/kernel_workspace
           REMOVE_DOTNET: 'true'
           REMOVE_ANDROID: 'true'
           REMOVE_HASKELL: 'true'
