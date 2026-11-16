@@ -1,0 +1,4 @@
+* text=auto eol=lf
+
+# Unified diff context lines contain a leading space before tabs or blank lines.
+patches/pad_2_pro_android15_tls_stats.patch text eol=lf whitespace=-blank-at-eol,-space-before-tab

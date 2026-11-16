@@ -1,0 +1,109 @@
+# Restore the complete TLS_STATS guards from Android common 7b1f455c7143098e61cdd2298639e3c412c285f2.
+# Applies to OnePlus Pad 2 Pro Android 15 (Linux 6.6.57); use CONFIG_TLS_STATS=n.
+--- a/include/net/netns/mib.h
++++ b/include/net/netns/mib.h
+@@ -21,7 +21,7 @@
+ #ifdef CONFIG_XFRM_STATISTICS
+ 	DEFINE_SNMP_STAT(struct linux_xfrm_mib, xfrm_statistics);
+ #endif
+-#if IS_ENABLED(CONFIG_TLS)
++#if IS_ENABLED(CONFIG_TLS) && defined(CONFIG_TLS_STATS)
+ 	DEFINE_SNMP_STAT(struct linux_tls_mib, tls_statistics);
+ #endif
+ #ifdef CONFIG_MPTCP
+--- a/net/tls/Kconfig
++++ b/net/tls/Kconfig
+@@ -37,3 +37,14 @@
+ 	which is incompatible with the Linux networking stack semantics.
+ 
+ 	If unsure, say N.
++
++config TLS_STATS
++	bool "Transport Layer Security statistics"
++	depends on TLS
++	default n
++	help
++	  Enable TLS statistics in procfs. This allows users to access the TLS
++	  statistics from userspace. This is disabled in GKI to allow enabling
++	  TLS without breaking the KMI.
++
++	  If unsure, say N for GKI and Y for non-GKI.
+--- a/net/tls/tls.h
++++ b/net/tls/tls.h
+@@ -44,12 +44,18 @@
+ #define TLS_PAGE_ORDER	(min_t(unsigned int, PAGE_ALLOC_COSTLY_ORDER,	\
+ 			       TLS_MAX_PAYLOAD_SIZE >> PAGE_SHIFT))
+ 
++#if defined(CONFIG_TLS_STATS)
+ #define __TLS_INC_STATS(net, field)				\
+ 	__SNMP_INC_STATS((net)->mib.tls_statistics, field)
+ #define TLS_INC_STATS(net, field)				\
+ 	SNMP_INC_STATS((net)->mib.tls_statistics, field)
+ #define TLS_DEC_STATS(net, field)				\
+ 	SNMP_DEC_STATS((net)->mib.tls_statistics, field)
++#else
++#define __TLS_INC_STATS(net, field)
++#define TLS_INC_STATS(net, field)
++#define TLS_DEC_STATS(net, field)
++#endif /* CONFIG_TLS_STATS */
+ 
+ struct tls_cipher_desc {
+ 	unsigned int nonce;
+--- a/net/tls/tls_main.c
++++ b/net/tls/tls_main.c
+@@ -1087,9 +1087,11 @@
+ {
+ 	int err;
+ 
++#if defined(CONFIG_TLS_STATS)
+ 	net->mib.tls_statistics = alloc_percpu(struct linux_tls_mib);
+ 	if (!net->mib.tls_statistics)
+ 		return -ENOMEM;
++#endif /* CONFIG_TLS_STATS */
+ 
+ 	err = tls_proc_init(net);
+ 	if (err)
+@@ -1097,14 +1099,18 @@
+ 
+ 	return 0;
+ err_free_stats:
++#if defined(CONFIG_TLS_STATS)
+ 	free_percpu(net->mib.tls_statistics);
++#endif /* CONFIG_TLS_STATS */
+ 	return err;
+ }
+ 
+ static void __net_exit tls_exit_net(struct net *net)
+ {
+ 	tls_proc_fini(net);
++#if defined(CONFIG_TLS_STATS)
+ 	free_percpu(net->mib.tls_statistics);
++#endif /* CONFIG_TLS_STATS */
+ }
+ 
+ static struct pernet_operations tls_proc_ops = {
+--- a/net/tls/tls_proc.c
++++ b/net/tls/tls_proc.c
+@@ -8,7 +8,7 @@
+ 
+ #include "tls.h"
+ 
+-#ifdef CONFIG_PROC_FS
++#if defined(CONFIG_PROC_FS) && defined(CONFIG_TLS_STATS)
+ static const struct snmp_mib tls_mib_list[] = {
+ 	SNMP_MIB_ITEM("TlsCurrTxSw", LINUX_MIB_TLSCURRTXSW),
+ 	SNMP_MIB_ITEM("TlsCurrRxSw", LINUX_MIB_TLSCURRRXSW),
+@@ -41,11 +41,11 @@
+ 
+ int __net_init tls_proc_init(struct net *net)
+ {
+-#ifdef CONFIG_PROC_FS
++#if defined(CONFIG_PROC_FS) && defined(CONFIG_TLS_STATS)
+ 	if (!proc_create_net_single("tls_stat", 0444, net->proc_net,
+ 				    tls_statistics_seq_show, NULL))
+ 		return -ENOMEM;
+-#endif /* CONFIG_PROC_FS */
++#endif /* CONFIG_PROC_FS && CONFIG_TLS_STATS */
+ 
+ 	return 0;
+ }
