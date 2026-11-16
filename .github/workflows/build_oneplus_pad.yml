@@ -525,6 +525,9 @@ jobs:
             cp -r ../SukiSU_patch/other/zram/lz4k_oplus ./common/lib/
           fi
           cd common
+          if [[ "$FILE" == "oneplus_pad_3_pro" && "$sukisu_profile" == "ultra_41184" && "$SUBLEVEL" == "58" ]]; then
+            patch --batch --forward --fuzz=0 -p1 < "$GITHUB_WORKSPACE/patches/pad_3_pro_susfs_2_4_compat.patch"
+          fi
           kotlin "$GITHUB_WORKSPACE/scripts/SusfsCompat.kts" apply "$PWD"
           kotlin "$GITHUB_WORKSPACE/scripts/SusfsContext.kts" "$PWD" "$PWD/50_add_susfs_in_gki-${KMI}.patch"
           patch --batch --forward -p1 < "50_add_susfs_in_gki-${KMI}.patch"
