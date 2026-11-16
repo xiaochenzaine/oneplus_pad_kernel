@@ -8,6 +8,23 @@
 
 [打开构建工作流](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/workflows/build_oneplus_pad.yml)
 
+## 成品下载与验证
+
+[下载 AK3、对应官方管理器和校验报告](https://github.com/xiaochenzaine/oneplus_pad_kernel/releases/tag/pad_pro_2026_11_17)。
+以下 6 套成品均已完整编译通过，并独立核对 AK3 文件清单、Image 内嵌配置、Root 版本和官方 APK 字节。
+
+| 设备选项 | 内核版本 | ReSukiSU 35203 | Ultra 41184 | HMBIRD 风驰 |
+| --- | --- | --- | --- | --- |
+| 一加Pad 2 Pro A15 | 6.6.57 | [通过](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43954240785) | [通过](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43953536348) | 已编入 |
+| 一加Pad 2 Pro A16 | 6.6.118 | [通过](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43954677418) | [通过](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43954684670) | 已编入 |
+| 一加Pad 3 Pro A16 | 6.12.58 | [通过](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43962282495) | [通过](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43964665574) | 未添加 |
+
+这些成品均使用 `KPM=N/A`，未开启 ADIOS、ZSTD 升级和显示可选补丁。
+22 项 Python 检查、actionlint 和相关对象编译通过；两份官方 APK 的包名、版本和签名均已验证，没有重新签名。
+Pad 3 Pro / 6.12 已适配 SUSFS 的 VMA 接口、Ultra 的 LSM 注册与构建路径，并修复 Root/BBG 的静态 LSM 槽位计数。
+各包实际构建提交与哈希见下载页的 `verification_results.json`，完整校验说明见 `validation_report.md`。
+实机启动、原厂模块 ABI 和游戏性能尚未验证。
+
 ## 机型与系统版本
 
 | 构建菜单名称 | 系统 | 官方源码清单 | 官方源码分支 | 内核系列 |

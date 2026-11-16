@@ -8,6 +8,26 @@ This repository is maintained independently. Its initial adaptation comes from c
 
 [Open the build workflow](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/workflows/build_oneplus_pad.yml)
 
+## Downloads and validation
+
+[Download AK3 packages, paired official managers and validation reports](https://github.com/xiaochenzaine/oneplus_pad_kernel/releases/tag/pad_pro_2026_11_17).
+All six packages below passed full compilation and independent verification of their file checksums,
+embedded kernel configuration, root versions and original official APK bytes.
+
+| Target | Kernel version | ReSukiSU 35203 | Ultra 41184 | HMBIRD / Fengchi |
+| --- | --- | --- | --- | --- |
+| 一加Pad 2 Pro A15 | 6.6.57 | [Passed](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43954240785) | [Passed](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43953536348) | Built in |
+| 一加Pad 2 Pro A16 | 6.6.118 | [Passed](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43954677418) | [Passed](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43954684670) | Built in |
+| 一加Pad 3 Pro A16 | 6.12.58 | [Passed](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43962282495) | [Passed](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43964665574) | Not added |
+
+These packages use KPM=N/A, with optional ADIOS, ZSTD updates and display patches disabled.
+All 22 Python checks, actionlint and relevant object compilation passed. Both official APKs passed
+package, version and signing-certificate verification and retain their original signatures.
+Pad 3 Pro / 6.12 includes SUSFS VMA adaptation, Ultra LSM registration and build-path fixes,
+and corrected static LSM slot counts for root/BBG. The release's verification_results.json records
+each package's actual workflow commit and hashes; validation_report.md contains the full report.
+Device boot, stock-module ABI and gaming performance have not been verified.
+
 ## Supported targets
 
 | Workflow choice | Device OS | Official manifest | Source revision | Kernel series |
@@ -28,7 +48,8 @@ Choose A15/A16 according to the installed OS. `RESUBLEVEL` changes only the disp
 1. Open Actions → **Build OnePlus Pad Kernels** → **Run workflow**.
 2. Use the default `main` branch, then select the device and Android version.
 3. Enable `SCHED_HMBIRD` for Fengchi on Pad 2 Pro if desired. Keep it disabled for Pad 3 Pro.
-4. Download the AnyKernel3 package and manager artifacts (with the paired official manager) from the completed run.
+4. Select `resukisu_35203` (default) or `ultra_41184` in `sukisu_profile`; keep `KPM=N/A` for ReSukiSU.
+5. Download the AnyKernel3 package, paired official manager and validation artifacts from the completed run.
 
 Scripts and local patches always come from the checked-out workflow commit, without switching to upstream sources.
 Shared options for SukiSU/SUSFS, KPM/KPN, BBG, networking, ZRAM, DroidSpaces and Re-Kernel are retained.
