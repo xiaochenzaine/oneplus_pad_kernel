@@ -103,6 +103,35 @@ class test_sukisu_profiles(unittest.TestCase):
             self.assertEqual(run.call_count, 1)
             self.assertIn("--dry-run", run.call_args.args[0])
 
+    def test_new_patches_only_accept_reviewed_device_versions(self):
+        for device, version in [("oneplus_pad_2_pro", "6.6.57"),
+                                ("oneplus_pad_2_pro_b", "6.6.118"),
+                                ("oneplus_pad_3_pro", "6.12.58")]:
+            with self.subTest(device=device):
+                selected = optional_patches.select_patches(device, version, False, False, False,
+                                                            mem_prefetch=True, s2idle_wakeup=True)
+                self.assertEqual(selected, [("mem_prefetch.patch", 0), ("s2idle_wakeup.patch", 0)])
+                with self.assertRaises(ValueError):
+                    optional_patches.select_patches(device, "6.6.999", False, False, False,
+                                                     mem_prefetch=True)
+
+    def test_optimization_report_rejects_missing_patches_and_mlgo_flags(self):
+        compiler_report = {"requested": True, "enabled": True,
+                           "cflags": ["-mllvm", "-regalloc-enable-advisor=release"]}
+        options = {"requested_inputs": {"mem_prefetch": True, "s2idle_wakeup": True, "mlgo": True}}
+        applied = [{"file": "mem_prefetch.patch"}, {"file": "s2idle_wakeup.patch"}]
+        config = {"CONFIG_LTO_NONE": "y"}
+        commands = "clang -O2 -mllvm -regalloc-enable-advisor=release -c kernel.c"
+        build_report.validate_optimizations(options, applied, compiler_report, config, commands)
+        for actual_patches, actual_compiler, actual_config, actual_commands in [
+                (applied[:1], compiler_report, config, commands),
+                (applied, {**compiler_report, "enabled": False}, config, commands),
+                (applied, compiler_report, {"CONFIG_LTO_CLANG_THIN": "y"}, commands),
+                (applied, compiler_report, config, "clang -O2 -c kernel.c")]:
+            with self.subTest(actual_commands=actual_commands), self.assertRaises(ValueError):
+                build_report.validate_optimizations(options, actual_patches, actual_compiler,
+                                                     actual_config, actual_commands)
+
     def test_report_rejects_disabled_seccomp_filters(self):
         config = {"CONFIG_KSU": "y", "CONFIG_KSU_SUSFS": "y", "CONFIG_SECCOMP": "y",
                   "CONFIG_SECCOMP_FILTER": "n", "CONFIG_STACKPROTECTOR_STRONG": "y"}

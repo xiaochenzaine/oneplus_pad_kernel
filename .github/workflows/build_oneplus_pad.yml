@@ -15,6 +15,18 @@ on:
         type: boolean
         description: "编入 ADIOS I/O 调度（保留原默认调度）//Optional ADIOS I/O scheduler"
         default: false
+      mem_prefetch:
+        type: boolean
+        description: "内存拷贝预取优化（实验；默认关闭，收益待实测）"
+        default: false
+      s2idle_wakeup:
+        type: boolean
+        description: "减少重复待机唤醒尝试（实验；默认关闭，需测试通知与唤醒）"
+        default: false
+      mlgo:
+        type: boolean
+        description: "MLGO编译优化（实验；需极速构建，不支持时明确报错）"
+        default: false
       zstd_update:
         type: boolean
         description: "升级ZSTD 1.5.7（仅Pad 2 Pro A15；默认关闭）"
@@ -106,10 +118,10 @@ on:
 
 jobs:
   build:
-    name: ${{ inputs.fast_build == true && ' [FAST]' || '' }}${{ inputs.kpm == 'KPM' && ' [KPM]' || inputs.kpm == 'KPN' && ' [KPN]' || '' }}${{ inputs.lsm_bbg == true && ' [BBG]' || '' }}${{ startsWith(inputs.pad_target, '一加Pad 2 Pro') && ' [HMBIRD]' || '' }}${{ inputs.droid_spaces == true && ' [DS]' || '' }}${{ (inputs.zram_profile != '原厂配置（推荐）' || startsWith(inputs.zram, '1/')) && ' [ZRAM]' || '' }}${{ inputs.re_kernel == true && ' [REKER]' || '' }}${{ inputs.lz4_update == true && ' [LZ4UPD]' || '' }}For ${{ inputs.pad_target }} ${{ inputs.suffix }}
+    name: ${{ inputs.fast_build == true && ' [FAST]' || '' }}${{ inputs.mlgo && ' [MLGO]' || '' }}${{ inputs.mem_prefetch && ' [MEMPF]' || '' }}${{ inputs.s2idle_wakeup && ' [S2IDLE]' || '' }}${{ inputs.kpm == 'KPM' && ' [KPM]' || inputs.kpm == 'KPN' && ' [KPN]' || '' }}${{ inputs.lsm_bbg == true && ' [BBG]' || '' }}${{ startsWith(inputs.pad_target, '一加Pad 2 Pro') && ' [HMBIRD]' || '' }}${{ inputs.droid_spaces == true && ' [DS]' || '' }}${{ (inputs.zram_profile != '原厂配置（推荐）' || startsWith(inputs.zram, '1/')) && ' [ZRAM]' || '' }}${{ inputs.re_kernel == true && ' [REKER]' || '' }}${{ inputs.lz4_update == true && ' [LZ4UPD]' || '' }}For ${{ inputs.pad_target }} ${{ inputs.suffix }}
     runs-on: ubuntu-latest
     env:
-      CCACHE_COMPILERCHECK: "none"
+      CCACHE_COMPILERCHECK: "content"
       CCACHE_NOHASHDIR: "true"
       CCACHE_NOHARDLINK: "true"
       CCACHE_IS_KERNEL_COMPILING: "true"
@@ -543,6 +555,8 @@ jobs:
           if [[ "${{ inputs.adios }}" == "true" ]]; then patch_args+=(--adios); fi
           if [[ "${{ inputs.zstd_update }}" == "true" ]]; then patch_args+=(--zstd-update); fi
           if [[ "${{ inputs.display_fix }}" == "true" ]]; then patch_args+=(--display-fix); fi
+          if [[ "${{ inputs.mem_prefetch }}" == "true" ]]; then patch_args+=(--mem-prefetch); fi
+          if [[ "${{ inputs.s2idle_wakeup }}" == "true" ]]; then patch_args+=(--s2idle-wakeup); fi
           python3 scripts/apply_optional_patches.py "${patch_args[@]}"
 
       # OGKI conversion is inherited from the Pad build workflow.
@@ -990,6 +1004,10 @@ jobs:
           fi
 
           if [[ -z "$CLANG_VERSION" ]]; then
+            if [[ "${{ inputs.mlgo }}" == "true" ]]; then
+              echo "::error::MLGO requires a verified compiler in FAST_BUILD; refusing an unchecked fallback."
+              exit 1
+            fi
             echo "⚠️ 未能从 CLANG_PREBUILT_BIN 或 build.config.constants 获取到 Clang 版本，回退至官方构建脚本"
             echo "fallback=true" >> "$GITHUB_OUTPUT"
             echo "请考虑关闭 FAST_BUILD 并提交问题"
@@ -1115,6 +1133,12 @@ jobs:
           make O=out "${MAKE_ARGS[@]}" gki_defconfig --no-print-directory
 
           make O=out "${MAKE_ARGS[@]}" olddefconfig --no-print-directory
+          mlgo_report="$GITHUB_WORKSPACE/kernel_workspace/manager_bundle/compiler_optimizations.json"
+          mlgo_args=(--compiler "$REAL_CLANG_BIN" --kernel-config out/.config --report "$mlgo_report")
+          if [[ "${{ inputs.mlgo }}" == "true" ]]; then mlgo_args+=(--enable); fi
+          python3 "$GITHUB_WORKSPACE/scripts/prepare_mlgo.py" "${mlgo_args[@]}"
+          mlgo_flags=$(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1], encoding="utf-8"))["cflags"]))' "$mlgo_report")
+          if [[ -n "$mlgo_flags" ]]; then MAKE_ARGS+=("KCFLAGS=$KCFLAGS $mlgo_flags"); fi
           # Generate SELinux headers before the root driver's parallel compilation.
           make -j"$(nproc --all)" O=out "${MAKE_ARGS[@]}" security/selinux/
           make -j"$(nproc --all)" O=out "${MAKE_ARGS[@]}"
@@ -1193,6 +1217,8 @@ jobs:
             kernel_out_dir="${config_paths[0]%/drivers/kernelsu}"
           fi
           report_args=()
+          compiler_report="$GITHUB_WORKSPACE/kernel_workspace/manager_bundle/compiler_optimizations.json"
+          if [[ -f "$compiler_report" ]]; then report_args+=(--compiler-report "$compiler_report"); fi
           if [[ "$FILE" != "oneplus_pad_3_pro" ]]; then report_args+=(--require-hmbird); fi
           python3 scripts/write_build_report.py --image AnyKernel3/Image --out-dir "$kernel_out_dir" \
             --platform-dir kernel_workspace/kernel_platform --bundle-dir kernel_workspace/manager_bundle \
@@ -1216,7 +1242,7 @@ jobs:
       - name: Set zip Suffix
         id: suffix
         run: |
-          echo "value=${{ env.ZRAM_ALGO_U && format('_{0}', env.ZRAM_ALGO_U) || '' }}${{ inputs.kpm == 'KPM' && '_KPM' || inputs.kpm == 'KPN' && '_KPN' || '' }}${{ inputs.lsm_bbg == true && '_BBG' || '' }}_ILH${{ startsWith(inputs.pad_target, '一加Pad 2 Pro') && '_HMBIRD' || '' }}${{ inputs.droid_spaces== true && '_DS' || '' }}${{ inputs.re_kernel == true && '_REKER' || '' }}${{ inputs.lz4_update == true && '_LZ4UPD' || '' }}" >> $GITHUB_OUTPUT
+          echo "value=${{ inputs.mem_prefetch && '_MEMPF' || '' }}${{ inputs.s2idle_wakeup && '_S2IDLE' || '' }}${{ inputs.mlgo && '_MLGO' || '' }}${{ env.ZRAM_ALGO_U && format('_{0}', env.ZRAM_ALGO_U) || '' }}${{ inputs.kpm == 'KPM' && '_KPM' || inputs.kpm == 'KPN' && '_KPN' || '' }}${{ inputs.lsm_bbg == true && '_BBG' || '' }}_ILH${{ startsWith(inputs.pad_target, '一加Pad 2 Pro') && '_HMBIRD' || '' }}${{ inputs.droid_spaces== true && '_DS' || '' }}${{ inputs.re_kernel == true && '_REKER' || '' }}${{ inputs.lz4_update == true && '_LZ4UPD' || '' }}" >> $GITHUB_OUTPUT
 
       - name: Upload AnyKernel3
         uses: actions/upload-artifact@v7

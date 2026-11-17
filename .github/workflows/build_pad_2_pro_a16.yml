@@ -15,6 +15,18 @@ on:
         type: boolean
         description: "编入 ADIOS I/O 调度（保留原默认调度）//Optional ADIOS I/O scheduler"
         default: false
+      mem_prefetch:
+        type: boolean
+        description: "内存拷贝预取优化（实验；默认关闭，收益待实测）"
+        default: false
+      s2idle_wakeup:
+        type: boolean
+        description: "减少重复待机唤醒尝试（实验；默认关闭，需测试通知与唤醒）"
+        default: false
+      mlgo:
+        type: boolean
+        description: "MLGO编译优化（实验；需极速构建，不支持时明确报错）"
+        default: false
       display_fix:
         type: boolean
         description: "显示兼容补丁（仅Pad 2 Pro A16；默认关闭）"
@@ -112,6 +124,9 @@ jobs:
       pad_target: "一加Pad 2 Pro A16"
       sukisu_profile: ${{ inputs.sukisu_profile }}
       adios: ${{ inputs.adios }}
+      mem_prefetch: ${{ inputs.mem_prefetch }}
+      s2idle_wakeup: ${{ inputs.s2idle_wakeup }}
+      mlgo: ${{ inputs.mlgo }}
       display_fix: ${{ inputs.display_fix }}
       kpm: ${{ inputs.kpm }}
       build_time: ${{ inputs.build_time }}

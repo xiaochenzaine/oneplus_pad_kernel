@@ -145,3 +145,15 @@ to Pad 2 Pro A16 / 6.6.118. NETFILTER adds optional FQ/FQ_CODEL/CAKE/PIE/FQ_PIE
 support without changing the default qdisc. See [patch sources](patches/sources.md).
 
 Successful compilation is not proof of stock-module ABI compatibility or device boot.
+
+Three experimental options are available for every device entry, all off by default:
+`mem_prefetch` adds ARM64 copy prefetches, `s2idle_wakeup` coalesces repeated s2idle
+wake attempts, and `mlgo` enables the selected Clang's release register allocator.
+They can be selected independently or together. The patches require zero-fuzz
+preflight on Pad 2 Pro A15 / 6.6.57, Pad 2 Pro A16 / 6.6.118 or Pad 3 Pro A16 / 6.12.58.
+MLGO retains O2, requires FAST_BUILD and CONFIG_LTO_NONE=y, and compiles a real
+AArch64 probe before the build. Unsupported compilers fail instead of ignoring
+the request. Build validation preserves source/dependency evidence and checks
+the final MLGO flags; reports include the compiler version and binary hash.
+No tablet performance or battery gains are claimed without device tests.
+Compiler-content checks also prevent cache reuse across changed compilers.

@@ -13,7 +13,7 @@ from resolve_pad_manifest import device_choices, device_configs
 boolean_inputs = (
     "adios", "zstd_update", "display_fix", "lz4_update", "fast_build", "lsm_bbg",
     "netfilter", "ccm", "unicode_bypass", "droid_spaces", "re_kernel",
-    "space_noclean", "build_nocache",
+    "space_noclean", "build_nocache", "mem_prefetch", "s2idle_wakeup", "mlgo",
 )
 zram_algorithms = {"lz4", "lz4hc", "lz4k", "lz4kd", "lz4k_oplus", "lzo", "lzo-rle", "zstd", "842"}
 default_zram_profile = "原厂配置（推荐）"
@@ -85,6 +85,8 @@ def validate_build_inputs(inputs):
         raise ValueError("ZSTD 升级仅适用于 Pad 2 Pro A15/6.6.57。")
     if inputs.get("display_fix", False) and device != "oneplus_pad_2_pro_b":
         raise ValueError("显示补丁仅适用于 Pad 2 Pro A16/6.6.118。")
+    if inputs.get("mlgo", False) and not inputs.get("fast_build", True):
+        raise ValueError("MLGO 当前只接入极速构建，请启用 fast_build；工具链能力会在实际编译前检测。")
     return {
         "target": target,
         "device": device,
@@ -93,6 +95,8 @@ def validate_build_inputs(inputs):
         "zram_config": zram_config,
         "zram": zram,
         "lz4_update": lz4_update,
+        "optimizations": {name: inputs.get(name, False)
+                          for name in ("mem_prefetch", "s2idle_wakeup", "mlgo")},
         "zram_lz4_combination": "device_test_required" if zram["custom"] and lz4_update else "not_selected",
         "fengchi": "native_hmbird_ii_runtime_unverified" if device == "oneplus_pad_3_pro" else "builtin_hmbird",
         "requested_inputs": inputs,
@@ -112,6 +116,11 @@ def write_summary(report, path):
             f"| ZRAM | {zram_text} |\n| 升级 LZ4 | {'是' if report['lz4_update'] else '否'} |\n"
             f"| 风驰 | {fengchi_text} |\n\n"
         )
+        summary.write("实验优化（默认关闭；所选项目仍需完整构建和实机测试）：\n\n")
+        for name, label in (("mem_prefetch", "内存拷贝预取"), ("s2idle_wakeup", "待机唤醒去重"),
+                            ("mlgo", "MLGO 编译优化；需工具链探测及编译参数校验")):
+            summary.write(f"- {label}：{'已选择' if report['optimizations'][name] else '关闭'}\n")
+        summary.write("\n")
         if report["zram_lz4_combination"] == "device_test_required":
             summary.write("自定义 ZRAM 与 LZ4 升级同时选择：仍需构建和实机验证；lz4kd 与普通 LZ4 是不同实现。\n\n")
 

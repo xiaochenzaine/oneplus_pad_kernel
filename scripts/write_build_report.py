@@ -37,6 +37,26 @@ def source_revision(path):
     return subprocess.check_output(["git", "-C", str(path), "rev-parse", "HEAD"], text=True).strip()
 
 
+def validate_optimizations(build_options, applied_patches, compiler_report, config, command_text):
+    requested = build_options.get("requested_inputs", {}) if build_options else {}
+    patch_names = {item["file"] for item in applied_patches}
+    for name, patch_name in (("mem_prefetch", "mem_prefetch.patch"),
+                             ("s2idle_wakeup", "s2idle_wakeup.patch")):
+        if requested.get(name, False) != (patch_name in patch_names):
+            raise ValueError(f"Requested optimization differs from the applied patch: {name}")
+    mlgo_requested = requested.get("mlgo", False)
+    if (compiler_report.get("requested", False) != mlgo_requested
+            or compiler_report.get("enabled", False) != mlgo_requested):
+        raise ValueError("Requested MLGO was not enabled by the verified compiler")
+    if mlgo_requested:
+        if config.get("CONFIG_LTO_NONE") != "y":
+            raise ValueError("MLGO validation currently requires CONFIG_LTO_NONE=y")
+        if compiler_report.get("cflags") != ["-mllvm", "-regalloc-enable-advisor=release"]:
+            raise ValueError("MLGO compiler report has unexpected flags")
+        if not re.search(r"(?:^|\s)-mllvm\s+-regalloc-enable-advisor=release(?:\s|$)", command_text):
+            raise ValueError("Compiled root commands do not contain the requested MLGO flags")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image", type=Path, required=True)
@@ -48,6 +68,7 @@ def main():
     parser.add_argument("--device", required=True)
     parser.add_argument("--require-hmbird", action="store_true")
     parser.add_argument("--inputs-report", type=Path)
+    parser.add_argument("--compiler-report", type=Path)
     args = parser.parse_args()
     lock_path = args.bundle_dir / "sukisu_lock.json"
     profile = json.loads(lock_path.read_text())
@@ -83,6 +104,36 @@ def main():
         options_report = args.report_dir / "build_options.json"
         shutil.copyfile(args.inputs_report, options_report)
         copied_files.append({"file": options_report.name, "sha256": file_sha256(options_report)})
+    applied_patches = json.loads((args.bundle_dir / "optional_patches.json").read_text())
+    compiler_report = {"requested": False, "enabled": False, "status": "not_requested"}
+    if args.compiler_report:
+        compiler_report = json.loads(args.compiler_report.read_text(encoding="utf-8"))
+        compiler_target = args.report_dir / "compiler_optimizations.json"
+        shutil.copyfile(args.compiler_report, compiler_target)
+        copied_files.append({"file": compiler_target.name, "sha256": file_sha256(compiler_target)})
+    validate_optimizations(build_options, applied_patches, compiler_report, config,
+                           command_report.read_text(encoding="utf-8"))
+    requested = build_options.get("requested_inputs", {}) if build_options else {}
+    optimization_commands = []
+    for name, source_name, object_dir, report_name in (
+            ("mem_prefetch", "arch/arm64/lib/copy_template.S", "arch/arm64/lib", "optimization_copy_template.s"),
+            ("s2idle_wakeup", "drivers/base/power/wakeup.c", "drivers/base/power", "optimization_wakeup.c")):
+        if not requested.get(name, False):
+            continue
+        dependencies = [path for path in (args.out_dir / object_dir).glob("*.cmd")
+                        if Path(source_name).name in path.read_text()]
+        if not dependencies:
+            raise ValueError(f"No compiled object references the optimized source: {source_name}")
+        optimization_commands.extend(dependencies)
+        target_path = args.report_dir / report_name
+        shutil.copyfile(args.platform_dir / "common" / source_name, target_path)
+        copied_files.append({"file": target_path.name, "sha256": file_sha256(target_path)})
+    if optimization_commands:
+        target_path = args.report_dir / "optimization_compile_commands"
+        target_path.write_text("\n\n".join(
+            f"# {path.relative_to(args.out_dir).as_posix()}\n{path.read_text()}"
+            for path in sorted(set(optimization_commands))), encoding="utf-8")
+        copied_files.append({"file": target_path.name, "sha256": file_sha256(target_path)})
     if profile["profile"] == "ultra_41184":
         hook_report = args.report_dir / "root_lsm_hook.c"
         shutil.copyfile(source_dir / "kernel" / "hook" / "lsm_hook.c", hook_report)
@@ -102,14 +153,15 @@ def main():
         "compiled_version_verified": True,
         "hmbird_requested": args.require_hmbird,
         "build_options": build_options,
+        "compiler_optimizations": compiler_report,
         "configuration": {key: value for key, value in config.items() if key.startswith(
             ("CONFIG_KSU", "CONFIG_SECCOMP", "CONFIG_STACKPROTECTOR", "CONFIG_TLS_STATS",
              "CONFIG_MQ_IOSCHED", "CONFIG_DEFAULT_", "CONFIG_NET_SCH", "CONFIG_HMBIRD",
              "CONFIG_SCHED_CLASS_EXT", "CONFIG_BPF", "CONFIG_DEBUG_INFO_BTF", "CONFIG_ZRAM",
-             "CONFIG_CRYPTO_LZ4", "CONFIG_LZ4"))},
+             "CONFIG_CRYPTO_LZ4", "CONFIG_LZ4", "CONFIG_LTO", "CONFIG_CC_VERSION_TEXT"))},
         "stock_module_abi": "not_verified_against_stock_modules",
         "device_boot_test": "not_performed", "validation_files": copied_files,
-        "optional_patches": json.loads((args.bundle_dir / "optional_patches.json").read_text()),
+        "optional_patches": applied_patches,
         "root_compatibility_patches": (json.loads(compatibility_path.read_text())
                                        if compatibility_path.exists() else []),
     }
@@ -122,6 +174,13 @@ def main():
                        for path in sorted(args.package_dir.rglob("*"))
                        if path.is_file() and path.name != "sha256sums") + "\n"
     (args.package_dir / "sha256sums").write_text(hashes, encoding="utf-8")
+    if summary_path := os.environ.get("GITHUB_STEP_SUMMARY"):
+        with Path(summary_path).open("a", encoding="utf-8") as summary:
+            summary.write("## 实际优化检查\n\n")
+            for name, label in (("mem_prefetch", "内存拷贝预取"), ("s2idle_wakeup", "待机唤醒去重")):
+                summary.write(f"- {label}：{'补丁和编译依赖已核对' if requested.get(name, False) else '关闭'}\n")
+            summary.write(f"- MLGO：{'探测及最终编译参数已核对' if compiler_report['enabled'] else '关闭'}\n")
+            summary.write("\n以上为构建检查；帧率、功耗及实机兼容性仍需测试。\n")
     print(f"Verified compiled {profile['profile']}; stock module ABI and device boot remain untested")
 
 

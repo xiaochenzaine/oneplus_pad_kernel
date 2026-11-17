@@ -41,6 +41,22 @@ class build_input_tests(unittest.TestCase):
             with self.subTest(options=options), self.assertRaises(ValueError):
                 build_inputs.validate_build_inputs({"pad_target": "一加Pad 2 Pro A15", **options})
 
+    def test_experimental_optimizations_default_off_and_can_be_combined(self):
+        names = ("mem_prefetch", "s2idle_wakeup", "mlgo")
+        for target in build_inputs.device_choices:
+            with self.subTest(target=target):
+                report = build_inputs.validate_build_inputs({"pad_target": target})
+                self.assertEqual(report["optimizations"], dict.fromkeys(names, False))
+                report = build_inputs.validate_build_inputs({"pad_target": target,
+                                                            **dict.fromkeys(names, True)})
+                self.assertTrue(all(report["optimizations"].values()))
+
+    def test_mlgo_rejects_unverified_build_path_and_non_boolean_options(self):
+        for options in [{"mlgo": True, "fast_build": False}, {"mlgo": "true"},
+                        {"mem_prefetch": 1}, {"s2idle_wakeup": "false"}]:
+            with self.subTest(options=options), self.assertRaises(ValueError):
+                build_inputs.validate_build_inputs({"pad_target": "一加Pad 2 Pro A15", **options})
+
     def test_pad_2_can_request_both_options_without_claiming_runtime_validation(self):
         for target in ["一加Pad 2 Pro A15", "一加Pad 2 Pro A16"]:
             with self.subTest(target=target):
