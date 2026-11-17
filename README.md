@@ -93,6 +93,27 @@ ReSukiSU 默认关闭多管理器支持，不添加自定义受信任证书。
 build_manifest.json、sha256sums 和独立的 kernel_validation 产物。
 校验要求启用 SECCOMP、SECCOMP_FILTER 和强栈保护；A15 同时检查 TLS_STATS=n。
 
+## Seccomp 状态
+
+官方管理器的这一行通过 `PR_GET_SECCOMP` 读取自身线程，不能代表整个内核或其他应用。
+历史 Ultra 41184 会在管理器启动时主动取消它的过滤，所以即使内核启用 SECCOMP 也会显示“未启用”。
+本仓库现对三个机型共用 [管理器 Seccomp 修补](patches/ultra_manager_seccomp.patch)：
+在 SUSFS 的 zygote 和 zygote_next 两条管理器启动路径保留原有过滤，同时保留官方 APK 使用的驱动 fd。
+实际执行 `su` 的 Root 会话继续采用原上游处理。APK 不修改、不重签，ReSukiSU 的处理也不变。
+这项修补用于之后的新构建，先前发布的成品不会随仓库更新而改变。
+
+更新内核并重启后，重新打开管理器检查。需要客观核实时，可从 AK3 中提取
+[check_seccomp.sh](scripts/check_seccomp.sh)，在设备上运行：
+
+```sh
+su -c 'sh /sdcard/Download/check_seccomp.sh com.sukisu.ultra com.android.settings'
+```
+
+先打开管理器和待检查的普通应用；示例的系统设置可换成任一未授予 Root 的应用包名。
+脚本只读配置和进程状态，不修改设备，也不发送数据。`Seccomp: 2` 表示被检查进程使用过滤模式；
+Root shell 的 `Seccomp: 0` 不能用于判断普通应用。仍需实机验证管理器识别内核、Root 授权、
+`su -c id` 和模块页面正常；编译通过不能代替这些检查。
+
 ## 可选改进
 
 - `adios`：编入 ADIOS I/O 调度器，保留原默认 I/O 调度。它与风驰 CPU 调度是不同功能。

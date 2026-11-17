@@ -147,6 +147,8 @@ def integrate_source(profile, platform_dir):
                                 (source_dir / "kernel" / "manager").glob("*.[ch]"))
     if profile["certificate_sha256"] not in signature_source:
         raise ValueError("Upstream builtin does not trust the locked official certificate")
+    if profile["profile"] == "ultra_41184":
+        compatibility_patches.append(apply_source_patch(source_dir, "ultra_manager_seccomp.patch"))
     if profile["kmi"] == "android16-6.12":
         compatibility_patches.append(apply_source_patch(
             platform_dir / "common", "pad_3_pro_lsm_count.patch"))

@@ -74,6 +74,10 @@ def main():
         f"# {path.relative_to(args.out_dir).as_posix()}\n{path.read_text()}"
         for path in sorted(matching_commands)), encoding="utf-8")
     copied_files = [{"file": command_report.name, "sha256": file_sha256(command_report)}]
+    if profile["profile"] == "ultra_41184":
+        hook_report = args.report_dir / "root_lsm_hook.c"
+        shutil.copyfile(source_dir / "kernel" / "hook" / "lsm_hook.c", hook_report)
+        copied_files.append({"file": hook_report.name, "sha256": file_sha256(hook_report)})
     for name in [".config", "Module.symvers", "include/config/kernel.release"]:
         source_path = args.out_dir / name
         if source_path.is_file():
@@ -101,6 +105,7 @@ def main():
     (args.report_dir / "build_manifest.json").write_text(manifest_text, encoding="utf-8")
     (args.package_dir / "build_manifest.json").write_text(manifest_text, encoding="utf-8")
     shutil.copyfile(apk_path, args.package_dir / apk_path.name)
+    shutil.copyfile(Path(__file__).with_name("check_seccomp.sh"), args.package_dir / "check_seccomp.sh")
     hashes = "\n".join(f"{file_sha256(path)}  {path.relative_to(args.package_dir).as_posix()}"
                        for path in sorted(args.package_dir.rglob("*"))
                        if path.is_file() and path.name != "sha256sums") + "\n"

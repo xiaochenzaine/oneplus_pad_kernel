@@ -12,6 +12,7 @@ Imported C identifiers are kept as upstream interfaces.
 | `pad_3_pro_susfs_2_4_compat.patch` | SUSFS 6.12 commits `9b0b13f069673b9b07b713a5c66977de4d62b175` and `b213c54126fb243595ce7876e91d84d6e0861fec` | Rebase the 2.4 patch's exec include context and task_mmu hooks onto the existing 6.12.58 VMA API |
 | `ultra_6_12_compat.patch` | Local API port of Ultra `f9aa2fec23c3f4a06a935f69dc04cb85b261e7f3` against OnePlus common `6d16e5c7628c17cce37f03cad3bcb3bbece9d3fc` | Register a persistent `struct lsm_id` with the modern `security_add_hooks` API and resolve the preinit source path for in-tree O=out builds |
 | `pad_3_pro_lsm_count.patch` | Local integration fix for OnePlus common `6d16e5c7628c17cce37f03cad3bcb3bbece9d3fc` | Reserve static LSM slots for builtin KSU and BBG, instead of exceeding the compiled table capacity |
+| `ultra_manager_seccomp.patch` | Local fix against Ultra builtin `f9aa2fec23c3f4a06a935f69dc04cb85b261e7f3` | Preserve the manager's existing seccomp filter in both SUSFS zygote paths while retaining driver-fd installation and root-profile handling |
 
 ADIOS is an optional I/O scheduler, separate from HMBIRD CPU scheduling. The
 6.12 patch declares GPL-2.0. ZSTD retains the Linux/ZSTD copyright and dual
@@ -30,3 +31,11 @@ The LSM and Ultra compatibility patches apply only to the 6.12 target. The slot 
 CONFIG_KSU and CONFIG_BBG; disabled modules do not reserve slots. The Ultra
 registration uses an internal undefined LSM id and does not add security-context
 APIs or change the manager trust list.
+
+The manager seccomp patch applies to Ultra 41184 on all three device targets.
+The official manager reads its own calling thread with `PR_GET_SECCOMP`; this is
+not a kernel-wide enable switch. The patch removes only the two manager-specific
+`disable_seccomp()` calls under `CONFIG_KSU_SUSFS`. It preserves the injected
+driver descriptor used by the official APK's ioctl interface. The authorized-app
+branches, non-SUSFS fallback and actual root-profile filter handling are retained.
+No syscall cache is broadened or private seccomp structure layout duplicated.

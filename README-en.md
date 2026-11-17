@@ -92,6 +92,32 @@ including seccomp, seccomp filters, strong stack protection and the A15 TLS layo
 Artifacts include the AK3 package, its official APK and a separate validation report.
 Stock-module ABI and device boot validation are reported separately from compilation.
 
+## Seccomp status
+
+The official manager reads its calling thread with `PR_GET_SECCOMP`, which does not
+measure kernel-wide or other apps' protection. Historical Ultra 41184 explicitly
+drops the manager's filter on startup, so its status can read Disabled even with
+SECCOMP enabled in the kernel.
+
+New Ultra builds for all three targets apply the [manager seccomp patch](patches/ultra_manager_seccomp.patch).
+Both SUSFS zygote paths retain the manager's existing filter and injected driver fd.
+Actual su sessions keep upstream root-profile handling. Official APKs and signatures
+are retained; ReSukiSU behavior is unchanged. Existing release assets are unaffected.
+
+After updating the kernel and rebooting, reopen the manager. Extract check_seccomp.sh
+from the new AK3 and run it from a root shell to read the manager and an ordinary app:
+
+```sh
+su -c 'sh /sdcard/Download/check_seccomp.sh com.sukisu.ultra com.android.settings'
+```
+
+Open both apps before checking. Replace the settings package with another app that
+has not been granted root if desired. The script reads configuration and process
+status without changing the device or transmitting data. Seccomp: 2 means filter
+mode for the inspected process; a root shell's Seccomp: 0 does not describe app
+protection. Device checks must still confirm manager detection, root authorization,
+su -c id and module management; compilation alone cannot verify those functions.
+
 Optional adios, zstd_update and display_fix are off by default. ADIOS does not
 replace the default I/O scheduler and is separate from HMBIRD CPU scheduling. ZSTD
 1.5.7 is currently restricted to Pad 2 Pro A15 / 6.6.57; the display patch is restricted
