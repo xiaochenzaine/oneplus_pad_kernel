@@ -10,7 +10,7 @@ This repository is maintained independently. Its initial adaptation comes from c
 
 ## Downloads and validation
 
-[Download AK3 packages, paired official managers and validation reports](https://github.com/xiaochenzaine/oneplus_pad_kernel/releases/tag/pad_pro_2026_11_17).
+[Download the fixed Ultra 41184 AK3 packages, official manager and validation reports](https://github.com/xiaochenzaine/oneplus_pad_kernel/releases/tag/pad_pro_2026_11_17_seccomp_fix).
 All six packages below passed full compilation and independent verification of their file checksums,
 embedded kernel configuration, root versions and original official APK bytes.
 
@@ -102,7 +102,8 @@ SECCOMP enabled in the kernel.
 New Ultra builds for all three targets apply the [manager seccomp patch](patches/ultra_manager_seccomp.patch).
 Both SUSFS zygote paths retain the manager's existing filter and injected driver fd.
 Actual su sessions keep upstream root-profile handling. Official APKs and signatures
-are retained; ReSukiSU behavior is unchanged. Existing release assets are unaffected.
+are retained; ReSukiSU behavior is unchanged. Use the fixed release link above for Ultra packages;
+the older release's Ultra assets predate this patch.
 
 After updating the kernel and rebooting, reopen the manager. Extract check_seccomp.sh
 from the new AK3 and run it from a root shell to read the manager and an ordinary app:

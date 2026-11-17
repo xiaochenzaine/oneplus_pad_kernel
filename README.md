@@ -10,7 +10,7 @@
 
 ## 成品下载与验证
 
-[下载 AK3、对应官方管理器和校验报告](https://github.com/xiaochenzaine/oneplus_pad_kernel/releases/tag/pad_pro_2026_11_17)。
+[下载已修复 Seccomp 的 Ultra 41184 AK3、官方管理器和校验报告](https://github.com/xiaochenzaine/oneplus_pad_kernel/releases/tag/pad_pro_2026_11_17_seccomp_fix)。
 以下 6 套成品均已完整编译通过，并独立核对 AK3 文件清单、Image 内嵌配置、Root 版本和官方 APK 字节。
 
 | 设备选项 | 内核版本 | ReSukiSU 35203 | Ultra 41184 | HMBIRD 风驰 |
@@ -100,7 +100,7 @@ build_manifest.json、sha256sums 和独立的 kernel_validation 产物。
 本仓库现对三个机型共用 [管理器 Seccomp 修补](patches/ultra_manager_seccomp.patch)：
 在 SUSFS 的 zygote 和 zygote_next 两条管理器启动路径保留原有过滤，同时保留官方 APK 使用的驱动 fd。
 实际执行 `su` 的 Root 会话继续采用原上游处理。APK 不修改、不重签，ReSukiSU 的处理也不变。
-这项修补用于之后的新构建，先前发布的成品不会随仓库更新而改变。
+这项修补用于之后的新构建；旧下载页中的 Ultra 成品是修补前版本，请使用上面的修复版下载页。
 
 更新内核并重启后，重新打开管理器检查。需要客观核实时，可从 AK3 中提取
 [check_seccomp.sh](scripts/check_seccomp.sh)，在设备上运行：
