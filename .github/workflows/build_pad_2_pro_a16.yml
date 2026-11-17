@@ -38,11 +38,17 @@ on:
         description: "升级内核LZ4实现（仅Pad 2 Pro；不直接升级lz4kd，默认关闭）"
         required: true
         default: false
-      zram:
-        type: string
-        description: "ZRAM：system保留原厂；自定义填1/算法/字节数，需另装生成的模块（仅Pad 2 Pro）"
+      zram_profile:
+        type: choice
+        description: "ZRAM内存压缩方案（默认即可；选择自定义方案后需另装生成的ZRAM模块）"
         required: true
-        default: "system"
+        default: "原厂配置（推荐）"
+        options:
+          - 原厂配置（推荐）
+          - LZ4KD / 4 GiB
+          - LZ4KD / 8 GiB
+          - LZ4 / 4 GiB
+          - LZ4 / 8 GiB
       suffix:
         type: string
         description: "自定义内核后缀(不输入使用RAND_STR或-1关闭)//Custom kernel suffix (Leave blank to use RAND_STR, or -1 to disable)"
@@ -110,7 +116,7 @@ jobs:
       kpm: ${{ inputs.kpm }}
       build_time: ${{ inputs.build_time }}
       lz4_update: ${{ inputs.lz4_update }}
-      zram: ${{ inputs.zram }}
+      zram_profile: ${{ inputs.zram_profile }}
       suffix: ${{ inputs.suffix }}
       resublevel: ${{ inputs.resublevel }}
       fast_build: ${{ inputs.fast_build }}

@@ -21,6 +21,25 @@ class build_input_tests(unittest.TestCase):
             with self.subTest(target=target):
                 report = build_inputs.validate_build_inputs({"pad_target": target})
                 self.assertFalse(report["zram"]["custom"])
+                self.assertEqual(report["zram_config"], "system")
+
+    def test_dropdown_profiles_resolve_algorithm_and_capacity_for_both_pad_2_targets(self):
+        for target in ["一加Pad 2 Pro A15", "一加Pad 2 Pro A16"]:
+            for algorithm in ["lz4kd", "lz4"]:
+                for size_gib in [4, 8]:
+                    profile = f"{algorithm.upper()} / {size_gib} GiB"
+                    with self.subTest(target=target, profile=profile):
+                        report = build_inputs.validate_build_inputs({
+                            "pad_target": target, "zram_profile": profile})
+                        self.assertEqual(report["zram"], {
+                            "custom": True, "algorithm": algorithm, "size_bytes": size_gib * 2 ** 30})
+                        self.assertEqual(report["zram_config"], f"1/{algorithm}/{size_gib * 2 ** 30}")
+
+    def test_unknown_or_conflicting_profile_is_rejected(self):
+        for options in [{"zram_profile": "LZ4KD / 16 GiB"},
+                        {"zram_profile": "LZ4 / 4 GiB", "zram": "1/lz4kd/8589934592"}]:
+            with self.subTest(options=options), self.assertRaises(ValueError):
+                build_inputs.validate_build_inputs({"pad_target": "一加Pad 2 Pro A15", **options})
 
     def test_pad_2_can_request_both_options_without_claiming_runtime_validation(self):
         for target in ["一加Pad 2 Pro A15", "一加Pad 2 Pro A16"]:
@@ -32,7 +51,8 @@ class build_input_tests(unittest.TestCase):
                 self.assertEqual(report["zram_lz4_combination"], "device_test_required")
 
     def test_pad_3_rejects_each_unavailable_option(self):
-        for options in [{"zram": "1/lz4kd/8589934592"}, {"lz4_update": True}]:
+        for options in [{"zram": "1/lz4kd/8589934592"},
+                        {"zram_profile": "LZ4KD / 8 GiB"}, {"lz4_update": True}]:
             with self.subTest(options=options), self.assertRaisesRegex(ValueError, "Pad 3 Pro"):
                 build_inputs.validate_build_inputs({"pad_target": "一加Pad 3 Pro A16", **options})
 
@@ -63,6 +83,28 @@ class build_input_tests(unittest.TestCase):
                 env={**os.environ, "pad_build_inputs": json.dumps(inputs)}, capture_output=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertFalse(report_path.exists())
+
+    def test_cli_exports_stock_and_custom_profiles_to_workflow(self):
+        for profile, expected_config, expected_custom in [
+                ("原厂配置（推荐）", "system", "false"),
+                ("LZ4KD / 8 GiB", "1/lz4kd/8589934592", "true")]:
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory() as directory:
+                report_path = Path(directory) / "build_options.json"
+                output_path = Path(directory) / "github_output"
+                summary_path = Path(directory) / "summary.md"
+                inputs = {"pad_target": "一加Pad 2 Pro A15", "zram_profile": profile}
+                result = subprocess.run(
+                    [sys.executable, str(scripts_dir / "validate_build_inputs.py"),
+                     "--report-path", str(report_path)],
+                    env={**os.environ, "pad_build_inputs": json.dumps(inputs),
+                         "GITHUB_OUTPUT": str(output_path), "GITHUB_STEP_SUMMARY": str(summary_path)},
+                    capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(output_path.read_text(encoding="utf-8").splitlines(), [
+                    f"zram_custom={expected_custom}", f"zram_config={expected_config}"])
+                self.assertEqual(json.loads(report_path.read_text(encoding="utf-8"))["zram_config"],
+                                 expected_config)
+                self.assertIn(profile, summary_path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

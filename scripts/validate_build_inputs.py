@@ -16,6 +16,14 @@ boolean_inputs = (
     "space_noclean", "build_nocache",
 )
 zram_algorithms = {"lz4", "lz4hc", "lz4k", "lz4kd", "lz4k_oplus", "lzo", "lzo-rle", "zstd", "842"}
+default_zram_profile = "原厂配置（推荐）"
+zram_profiles = {
+    default_zram_profile: "system",
+    "LZ4KD / 4 GiB": "1/lz4kd/4294967296",
+    "LZ4KD / 8 GiB": "1/lz4kd/8589934592",
+    "LZ4 / 4 GiB": "1/lz4/4294967296",
+    "LZ4 / 8 GiB": "1/lz4/8589934592",
+}
 
 
 def parse_zram(value):
@@ -37,6 +45,16 @@ def parse_zram(value):
     return {"custom": True, "algorithm": algorithm, "size_bytes": size_bytes}
 
 
+def resolve_zram_config(inputs):
+    profile = inputs.get("zram_profile", default_zram_profile)
+    if profile not in zram_profiles:
+        raise ValueError("ZRAM 方案无效，请选择原厂配置或下拉菜单中的预设。")
+    legacy_config = inputs.get("zram", "system")
+    if profile != default_zram_profile and legacy_config != "system":
+        raise ValueError("ZRAM 预设与旧自定义参数不能同时指定，请只选择一种方式。")
+    return zram_profiles[profile] if profile != default_zram_profile else legacy_config
+
+
 def validate_build_inputs(inputs):
     if not isinstance(inputs, dict):
         raise ValueError("构建参数必须为 JSON 对象。")
@@ -55,11 +73,12 @@ def validate_build_inputs(inputs):
         raise ValueError("KPM 选项无效。")
     if profile == "resukisu_35203" and kpm != "N/A":
         raise ValueError("ReSukiSU 未提供 Ultra KPM/KPN 实现，请选择 N/A。")
-    zram = parse_zram(inputs.get("zram", "system"))
+    zram_config = resolve_zram_config(inputs)
+    zram = parse_zram(zram_config)
     lz4_update = inputs.get("lz4_update", False)
     if device == "oneplus_pad_3_pro":
         if zram["custom"]:
-            raise ValueError("Pad 3 Pro A16/6.12 缺少对应的自定义 ZRAM 补丁，请使用 system 保留原厂配置。")
+            raise ValueError("Pad 3 Pro A16/6.12 缺少对应的自定义 ZRAM 补丁，请保留原厂配置。")
         if lz4_update:
             raise ValueError("Pad 3 Pro A16/6.12 的 LZ4 升级尚未完成适配验证，当前不开放。")
     if inputs.get("zstd_update", False) and device != "oneplus_pad_2_pro":
@@ -71,6 +90,7 @@ def validate_build_inputs(inputs):
         "device": device,
         "kmi": device_configs[device]["kmi"],
         "sukisu_profile": profile,
+        "zram_config": zram_config,
         "zram": zram,
         "lz4_update": lz4_update,
         "zram_lz4_combination": "device_test_required" if zram["custom"] and lz4_update else "not_selected",
@@ -81,8 +101,8 @@ def validate_build_inputs(inputs):
 
 def write_summary(report, path):
     zram = report["zram"]
-    zram_text = (f"自定义 {zram['algorithm']} / {zram['size_bytes']} 字节（需另装生成的 ZRAM 模块）"
-                 if zram["custom"] else "保留系统配置；不会关闭系统 ZRAM")
+    zram_text = (f"{zram['algorithm'].upper()} / {zram['size_bytes'] / 2 ** 30:g} GiB（需另装生成的 ZRAM 模块）"
+                 if zram["custom"] else "原厂配置（推荐）；保留系统 ZRAM")
     fengchi_text = ("原生 HMBIRD II 框架；厂商模块加载及游戏策略待实机确认"
                     if report["device"] == "oneplus_pad_3_pro" else "编入目标机型 HMBIRD 补丁")
     with path.open("a", encoding="utf-8") as summary:
@@ -105,6 +125,10 @@ def main():
     except (KeyError, TypeError, ValueError) as error:
         parser.exit(1, f"::error::{error}\n")
     args.report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if output_path := os.environ.get("GITHUB_OUTPUT"):
+        with Path(output_path).open("a", encoding="utf-8") as output:
+            output.write(f"zram_custom={'true' if report['zram']['custom'] else 'false'}\n")
+            output.write(f"zram_config={report['zram_config']}\n")
     if summary_path := os.environ.get("GITHUB_STEP_SUMMARY"):
         write_summary(report, Path(summary_path))
     print(f"Validated build options: {report['target']}")

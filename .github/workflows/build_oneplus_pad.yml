@@ -38,9 +38,14 @@ on:
         description: "升级内核LZ4实现（仅Pad 2 Pro；不直接升级lz4kd，默认关闭）"
         required: false
         default: false
+      zram_profile:
+        type: string
+        description: "ZRAM下拉方案，默认保留原厂配置"
+        required: false
+        default: "原厂配置（推荐）"
       zram:
         type: string
-        description: "ZRAM：system保留原厂；自定义填1/算法/字节数，需另装生成的模块（仅Pad 2 Pro）"
+        description: "兼容旧调用的ZRAM参数；普通构建使用zram_profile"
         required: false
         default: "system"
       suffix:
@@ -101,7 +106,7 @@ on:
 
 jobs:
   build:
-    name: ${{ inputs.fast_build == true && ' [FAST]' || '' }}${{ inputs.kpm == 'KPM' && ' [KPM]' || inputs.kpm == 'KPN' && ' [KPN]' || '' }}${{ inputs.lsm_bbg == true && ' [BBG]' || '' }}${{ startsWith(inputs.pad_target, '一加Pad 2 Pro') && ' [HMBIRD]' || '' }}${{ inputs.droid_spaces == true && ' [DS]' || '' }}${{ startsWith(inputs.zram, '1/') && ' [ZRAM]' || '' }}${{ inputs.re_kernel == true && ' [REKER]' || '' }}${{ inputs.lz4_update == true && ' [LZ4UPD]' || '' }}For ${{ inputs.pad_target }} ${{ inputs.suffix }}
+    name: ${{ inputs.fast_build == true && ' [FAST]' || '' }}${{ inputs.kpm == 'KPM' && ' [KPM]' || inputs.kpm == 'KPN' && ' [KPN]' || '' }}${{ inputs.lsm_bbg == true && ' [BBG]' || '' }}${{ startsWith(inputs.pad_target, '一加Pad 2 Pro') && ' [HMBIRD]' || '' }}${{ inputs.droid_spaces == true && ' [DS]' || '' }}${{ (inputs.zram_profile != '原厂配置（推荐）' || startsWith(inputs.zram, '1/')) && ' [ZRAM]' || '' }}${{ inputs.re_kernel == true && ' [REKER]' || '' }}${{ inputs.lz4_update == true && ' [LZ4UPD]' || '' }}For ${{ inputs.pad_target }} ${{ inputs.suffix }}
     runs-on: ubuntu-latest
     env:
       CCACHE_COMPILERCHECK: "none"
@@ -114,6 +119,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Validate Device Build Options
+        id: build_options
         env:
           pad_build_inputs: ${{ toJSON(inputs) }}
         run: python3 scripts/validate_build_inputs.py --report-path build_options.json
@@ -157,7 +163,8 @@ jobs:
           echo "Selected FILE: ${{ env.FILE }}"
           echo "Selected root: ${{ inputs.sukisu_profile }}"
           echo "Selected KPM: ${{ inputs.kpm }}"
-          echo "Selected ZRAM: ${{ inputs.zram }}"
+          echo "Selected ZRAM profile: ${{ inputs.zram_profile }}"
+          echo "Resolved ZRAM config: ${{ steps.build_options.outputs.zram_config }}"
           echo "Selected LSM_BBG: ${{ inputs.lsm_bbg }}"
           echo "Selected NETFILTER: ${{ inputs.netfilter }}"
           echo "Selected CCM: ${{ inputs.ccm }}"
@@ -510,7 +517,7 @@ jobs:
           cp "../susfs4ksu/kernel_patches/50_add_susfs_in_gki-${KMI}.patch" ./common/
           cp ../susfs4ksu/kernel_patches/fs/* ./common/fs/
           cp ../susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
-          if [[ "${{ inputs.zram }}" == 1* ]]; then
+          if [[ "${{ steps.build_options.outputs.zram_custom }}" == true ]]; then
             cp -r ../SukiSU_patch/other/zram/lz4k/include/linux/* ./common/include/linux/
             cp -r ../SukiSU_patch/other/zram/lz4k/lib/* ./common/lib/
             cp -r ../SukiSU_patch/other/zram/lz4k/crypto/* ./common/crypto/
@@ -646,14 +653,14 @@ jobs:
           . "${LZ4_REPO}/apply_lz4_oplus.sh"
 
       - name: Apply Custom ZRAM for Pad 2 Pro
-        if: startsWith(inputs.zram, '1/')
+        if: steps.build_options.outputs.zram_custom == 'true'
         run: |
           set -euo pipefail
           if [[ "$KERNEL_VERSION" != "6.6" ]]; then
             echo "::error::Custom ZRAM patches are currently available only for Pad 2 Pro / 6.6."
             exit 1
           fi
-          zram_config="${{ inputs.zram }}"
+          zram_config="${{ steps.build_options.outputs.zram_config }}"
           IFS='/' read -r zram_enabled zram_algorithm zram_bytes <<< "$zram_config"
           echo "ZRAM_ALGO=$zram_algorithm" >> "$GITHUB_ENV"
           echo "ZRAM_ALGO_U=${zram_algorithm^^}" >> "$GITHUB_ENV"
@@ -816,7 +823,7 @@ jobs:
           fi
 
           # ZRAM配置*
-          if [[ "${{ inputs.zram }}" == 1* ]]; then
+          if [[ "${{ steps.build_options.outputs.zram_custom }}" == true ]]; then
             set_config "CONFIG_CRYPTO_LZ4HC=y"
             set_config "CONFIG_CRYPTO_LZ4K=y"
             set_config "CONFIG_CRYPTO_LZ4KD=y"
@@ -1218,7 +1225,7 @@ jobs:
           path: ./AnyKernel3/*
 
       - name: Extract and Process ZRAM Module
-        if: startsWith(inputs.zram, '1/')
+        if: steps.build_options.outputs.zram_custom == 'true'
         run: |
           set -euo pipefail
           zram_zip="$GITHUB_WORKSPACE/kernel_workspace/action_build/ZRAM.zip"
@@ -1260,7 +1267,7 @@ jobs:
           fi
 
       - name: Upload ZRAM Module
-        if: startsWith(inputs.zram, '1/')
+        if: steps.build_options.outputs.zram_custom == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: zram_module_${{ env.KERNEL_VERSION }}_${{ steps.extract_info.outputs.value }}

@@ -63,8 +63,9 @@ The **内部公共编译流程** shared workflow is called automatically by thes
 | Display patch | Hidden | Optional; off by default | Hidden |
 | ADIOS I/O scheduler | Optional; off by default | Optional; off by default | Optional; off by default |
 
-`zram=system` preserves stock ZRAM settings. The legacy `0/lz4kd/8589934592` also means preserving system settings, not disabling ZRAM.
-Pad 2 Pro accepts values such as `1/lz4kd/8589934592`; install the separately generated ZRAM module to apply its algorithm and 8 GiB logical capacity at startup.
+The Pad 2 Pro **ZRAM** dropdown defaults to **原厂配置（推荐）** (stock settings, recommended); no manual parameters are needed.
+Other presets are **LZ4KD / 4 GiB**, **LZ4KD / 8 GiB**, **LZ4 / 4 GiB** and **LZ4 / 8 GiB**. Algorithm and capacity are resolved automatically; install the separately generated ZRAM module to apply a custom preset at startup.
+Stock settings preserve existing system ZRAM. The legacy `system` and `0/lz4kd/8589934592` inputs also retain stock settings.
 Flashing AK3 alone does not activate that configuration. Logical capacity does not reserve an equal amount of physical RAM upfront.
 Custom ZRAM and LZ4 upgrades can be selected together, but the combination has not passed a full build or device test. `lz4kd` is distinct from ordinary LZ4, so upgrading LZ4 does not directly upgrade `lz4kd`.
 The run summary and `build_manifest.json` record the target, requested memory options and validation scope.
