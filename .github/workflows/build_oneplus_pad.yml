@@ -90,11 +90,6 @@ on:
         description: "是否添加Unicode不可见字码点绕过读取漏洞修复？//Add patch for Unicode invisible code point read bypass vulnerability?"
         required: true
         default: false
-      SCHED_HMBIRD:
-        type: boolean
-        description: "风驰驱动（Pad 2 Pro 可选；Pad 3 Pro 暂无补丁）//HMBIRD (Pad 2 Pro only)"
-        required: true
-        default: false
       DROID_SPACES:
         type: boolean
         description: "是否添加轻量级Linux容器支持(DroidSpaces)？//Add lightweight Linux container support (DroidSpaces)?"
@@ -118,7 +113,7 @@ on:
 
 jobs:
   build:
-    name: ${{ github.event.inputs.FAST_BUILD == 'true' && ' [FAST]' || '' }}${{ github.event.inputs.KPM == 'KPM' && ' [KPM]' || github.event.inputs.KPM == 'KPN' && ' [KPN]' || '' }}${{ github.event.inputs.LSM_BBG == 'true' && ' [BBG]' || '' }}${{ github.event.inputs.SCHED_HMBIRD == 'true' && ' [HMBIRD]' || '' }}${{ github.event.inputs.DROID_SPACES == 'true' && ' [DS]' || '' }}${{ startsWith(github.event.inputs.ZRAM, '1/') && ' [ZRAM]' || '' }}${{ github.event.inputs.RE_KERNEL == 'true' && ' [REKER]' || '' }}${{ github.event.inputs.LZ4_UPDATE == 'true' && ' [LZ4UPD]' || '' }}For ${{ github.event.inputs.FILE }} ${{ github.event.inputs.SUFFIX }}
+    name: ${{ github.event.inputs.FAST_BUILD == 'true' && ' [FAST]' || '' }}${{ github.event.inputs.KPM == 'KPM' && ' [KPM]' || github.event.inputs.KPM == 'KPN' && ' [KPN]' || '' }}${{ github.event.inputs.LSM_BBG == 'true' && ' [BBG]' || '' }}${{ startsWith(github.event.inputs.FILE, '一加Pad 2 Pro') && ' [HMBIRD]' || '' }}${{ github.event.inputs.DROID_SPACES == 'true' && ' [DS]' || '' }}${{ startsWith(github.event.inputs.ZRAM, '1/') && ' [ZRAM]' || '' }}${{ github.event.inputs.RE_KERNEL == 'true' && ' [REKER]' || '' }}${{ github.event.inputs.LZ4_UPDATE == 'true' && ' [LZ4UPD]' || '' }}For ${{ github.event.inputs.FILE }} ${{ github.event.inputs.SUFFIX }}
     runs-on: ubuntu-latest
     env:
       CCACHE_COMPILERCHECK: "none"
@@ -174,7 +169,7 @@ jobs:
           echo "Selected NETFILTER: ${{ github.event.inputs.NETFILTER }}"
           echo "Selected CCM: ${{ github.event.inputs.CCM }}"
           echo "Selected FAST_BUILD: ${{ github.event.inputs.FAST_BUILD }}"
-          echo "Selected SCHED_HMBIRD: ${{ github.event.inputs.SCHED_HMBIRD }}"
+          echo "Selected SCHED_HMBIRD: ${{ startsWith(github.event.inputs.FILE, '一加Pad 2 Pro') && 'true' || 'false' }} (derived from FILE)"
           echo "Selected UNICODE_BYPASS: ${{ github.event.inputs.UNICODE_BYPASS }}"
           echo "Selected DROID_SPACES: ${{ github.event.inputs.DROID_SPACES }}"
           echo "Selected RE_KERNEL: ${{ github.event.inputs.RE_KERNEL }}"
@@ -549,7 +544,7 @@ jobs:
       # OGKI conversion is inherited from the Pad build workflow.
 
       - name: Apply Convert HMBIRD_OGKI to HMBIRD_GKI
-        if: ${{ (fromJSON(env.VERSIONLEVEL) > 6 || (fromJSON(env.VERSIONLEVEL) == 6 && fromJSON(env.PATCHLEVEL) >= 6)) && github.event.inputs.SCHED_HMBIRD == 'false' }}
+        if: ${{ (fromJSON(env.VERSIONLEVEL) > 6 || (fromJSON(env.VERSIONLEVEL) == 6 && fromJSON(env.PATCHLEVEL) >= 6)) && github.event.inputs.FILE == '一加Pad 3 Pro A16' }}
         run: |
           PATCH_DIR="${GITHUB_WORKSPACE}/kernel_workspace/action_build/patches"
           cd kernel_workspace/kernel_platform/common
@@ -681,7 +676,7 @@ jobs:
       - name: Apply SCHED_HMBIRD
         env:
           FILE: ${{ env.FILE }}
-        if: ${{ github.event.inputs.SCHED_HMBIRD == 'true' }}
+        if: ${{ github.event.inputs.FILE != '一加Pad 3 Pro A16' }}
         run: |
           cd kernel_workspace/kernel_platform/common
           for sched_dir in ./kernel/sched/hmbird* ./vendor/oplus/kernel/cpu/sched_ext/hmbird*; do
@@ -691,7 +686,7 @@ jobs:
             fi
           done
           if [[ "$CPU" != "sm8750" ]]; then
-            echo "::error::No HMBIRD patch is available for this device. Disable SCHED_HMBIRD for Pad 3 Pro."
+            echo "::error::No HMBIRD patch is available for this target."
             exit 11
           fi
           git clone --depth=1 https://github.com/Numbersf/SCHED_PATCH.git -b "$CPU" sched_patch
@@ -1192,7 +1187,7 @@ jobs:
             kernel_out_dir="${config_paths[0]%/drivers/kernelsu}"
           fi
           report_args=()
-          if [[ "${{ inputs.SCHED_HMBIRD }}" == "true" ]]; then report_args+=(--require-hmbird); fi
+          if [[ "$FILE" != "oneplus_pad_3_pro" ]]; then report_args+=(--require-hmbird); fi
           python3 scripts/write_build_report.py --image AnyKernel3/Image --out-dir "$kernel_out_dir" \
             --platform-dir kernel_workspace/kernel_platform --bundle-dir kernel_workspace/manager_bundle \
             --package-dir AnyKernel3 --report-dir kernel_validation --device "$FILE" "${report_args[@]}"
@@ -1214,7 +1209,7 @@ jobs:
       - name: Set zip Suffix
         id: suffix
         run: |
-          echo "value=${{ env.ZRAM_ALGO_U && format('_{0}', env.ZRAM_ALGO_U) || '' }}${{ github.event.inputs.KPM == 'KPM' && '_KPM' || github.event.inputs.KPM == 'KPN' && '_KPN' || '' }}${{ github.event.inputs.LSM_BBG == 'true' && '_BBG' || '' }}_ILH${{ github.event.inputs.SCHED_HMBIRD== 'true' && '_HMBIRD' || '' }}${{ github.event.inputs.DROID_SPACES== 'true' && '_DS' || '' }}${{ github.event.inputs.RE_KERNEL == 'true' && '_REKER' || '' }}${{ github.event.inputs.LZ4_UPDATE == 'true' && '_LZ4UPD' || '' }}" >> $GITHUB_OUTPUT
+          echo "value=${{ env.ZRAM_ALGO_U && format('_{0}', env.ZRAM_ALGO_U) || '' }}${{ github.event.inputs.KPM == 'KPM' && '_KPM' || github.event.inputs.KPM == 'KPN' && '_KPN' || '' }}${{ github.event.inputs.LSM_BBG == 'true' && '_BBG' || '' }}_ILH${{ startsWith(github.event.inputs.FILE, '一加Pad 2 Pro') && '_HMBIRD' || '' }}${{ github.event.inputs.DROID_SPACES== 'true' && '_DS' || '' }}${{ github.event.inputs.RE_KERNEL == 'true' && '_REKER' || '' }}${{ github.event.inputs.LZ4_UPDATE == 'true' && '_LZ4UPD' || '' }}" >> $GITHUB_OUTPUT
 
       - name: Upload AnyKernel3
         uses: actions/upload-artifact@v7

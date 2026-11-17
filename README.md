@@ -44,7 +44,7 @@ Pad 2 Pro 的安卓 15 和安卓 16 源码都使用 `android15-6.6` GKI 分支�
 
 1. 打开 Actions → **Build OnePlus Pad Kernels** → **Run workflow**。
 2. 使用默认的 `main` 分支，选择对应机型和系统版本。安卓 15 的 Pad 2 Pro 选择 **一加Pad 2 Pro A15**。
-3. Pad 2 Pro 如需风驰，开启 `SCHED_HMBIRD`；其余功能按需选择。
+3. 风驰按机型自动处理：Pad 2 Pro 自动编入 HMBIRD，Pad 3 Pro 没有对应补丁并自动关闭。
 4. `sukisu_profile` 选择 ReSukiSU 35203（默认）或 SukiSU Ultra 41184；ReSukiSU 保持 `KPM=N/A`。
 5. 构建成功后，在该次运行的 Artifacts 下载 AnyKernel3 包、官方管理器和校验报告。
 
@@ -56,11 +56,11 @@ Pad 2 Pro 的安卓 15 和安卓 16 源码都使用 `android15-6.6` GKI 分支�
 
 Pad 2 Pro 的补丁来自 [Numbersf/SCHED_PATCH](https://github.com/Numbersf/SCHED_PATCH/tree/sm8750)：
 
-| 构建菜单名称 | 开启 `SCHED_HMBIRD` 时使用的补丁 |
+| 构建菜单名称 | 自动使用的风驰补丁 |
 | --- | --- |
 | 一加Pad 2 Pro A15 | `fengchi_oneplus_pad_2_pro.patch` |
 | 一加Pad 2 Pro A16 | `fengchi_oneplus_pad_2_pro_b.patch` |
-| 一加Pad 3 Pro A16 | 当前无对应补丁，请保持关闭 |
+| 一加Pad 3 Pro A16 | 当前无对应补丁，工作流自动关闭 |
 
 已内置 HMBIRD 的源码不会重复添加。未找到对应补丁时会明确报错，避免套用其他设备的补丁。
 

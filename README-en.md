@@ -47,7 +47,7 @@ Choose A15/A16 according to the installed OS. `RESUBLEVEL` changes only the disp
 
 1. Open Actions → **Build OnePlus Pad Kernels** → **Run workflow**.
 2. Use the default `main` branch, then select the device and Android version.
-3. Enable `SCHED_HMBIRD` for Fengchi on Pad 2 Pro if desired. Keep it disabled for Pad 3 Pro.
+3. Fengchi is selected by target automatically: HMBIRD is built into Pad 2 Pro packages and disabled for Pad 3 Pro, which has no matching patch.
 4. Select `resukisu_35203` (default) or `ultra_41184` in `sukisu_profile`; keep `KPM=N/A` for ReSukiSU.
 5. Download the AnyKernel3 package, paired official manager and validation artifacts from the completed run.
 
@@ -63,7 +63,7 @@ Pad 2 Pro uses [Numbersf/SCHED_PATCH, branch sm8750](https://github.com/Numbersf
 | --- | --- |
 | 一加Pad 2 Pro A15 | `fengchi_oneplus_pad_2_pro.patch` |
 | 一加Pad 2 Pro A16 | `fengchi_oneplus_pad_2_pro_b.patch` |
-| 一加Pad 3 Pro A16 | No matching patch is currently available; leave HMBIRD disabled |
+| 一加Pad 3 Pro A16 | No matching patch; workflow disables HMBIRD automatically |
 
 Existing HMBIRD source directories are not patched again. Unsupported devices or missing patches produce an explicit error.
 
