@@ -7,9 +7,12 @@ on:
         type: choice
         description: '清理的工作流名称'
         required: true
-        default: 'Build OnePlus Pad Kernels'
+        default: '一加Pad 2 Pro A15'
         options:
-          - Build OnePlus Pad Kernels
+          - 一加Pad 2 Pro A15
+          - 一加Pad 2 Pro A16
+          - 一加Pad 3 Pro A16
+          - Build OnePlus Pad Kernel (Reusable)
       cache_mode:
         type: choice
         description: '缓存清理类型'

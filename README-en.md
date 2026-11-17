@@ -6,7 +6,7 @@ This repository builds ReSukiSU / SukiSU Ultra kernels exclusively for **OnePlus
 Based on [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build); the upstream [LICENSE](LICENSE) is retained.
 This repository is maintained independently. Its initial adaptation comes from commit `bbca1d9f8fcf733e96ba5cda64b1ee1239216033` in `xiaochenzaine/Action-Build`.
 
-[Open the build workflow](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/workflows/build_oneplus_pad.yml)
+Build entries: [Pad 2 Pro A15](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/workflows/build_pad_2_pro_a15.yml) · [Pad 2 Pro A16](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/workflows/build_pad_2_pro_a16.yml) · [Pad 3 Pro A16](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/workflows/build_pad_3_pro_a16.yml)
 
 ## Downloads and validation
 
@@ -18,7 +18,7 @@ embedded kernel configuration, root versions and original official APK bytes.
 | --- | --- | --- | --- | --- |
 | 一加Pad 2 Pro A15 | 6.6.57 | [Passed](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43954240785) | [Passed](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43953536348) | Built in |
 | 一加Pad 2 Pro A16 | 6.6.118 | [Passed](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43954677418) | [Passed](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43954684670) | Built in |
-| 一加Pad 3 Pro A16 | 6.12.58 | [Passed](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43962282495) | [Passed](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43964665574) | Not added |
+| 一加Pad 3 Pro A16 | 6.12.58 | [Passed](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43962282495) | [Passed](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43964665574) | Native HMBIRD II framework; runtime unverified |
 
 These packages use KPM=N/A, with optional ADIOS, ZSTD updates and display patches disabled.
 All 22 Python checks, actionlint and relevant object compilation passed. Both official APKs passed
@@ -45,15 +45,29 @@ Choose A15/A16 according to the installed OS. `RESUBLEVEL` changes only the disp
 
 ## Build
 
-1. Open Actions → **Build OnePlus Pad Kernels** → **Run workflow**.
-2. Use the default `main` branch, then select the device and Android version.
-3. Fengchi is selected by target automatically: HMBIRD is built into Pad 2 Pro packages and disabled for Pad 3 Pro, which has no matching patch.
+1. Open the **一加Pad 2 Pro A15**, **一加Pad 2 Pro A16** or **一加Pad 3 Pro A16** workflow in Actions, then select **Run workflow**.
+2. Use the default `main` branch. Each entry fixes its device and Android version.
+3. Pad 2 Pro receives its matching HMBIRD patch. Pad 3 Pro uses the framework required by native HMBIRD II; vendor-module compatibility and game policies still require device testing.
 4. Select `resukisu_35203` (default) or `ultra_41184` in `sukisu_profile`; keep `KPM=N/A` for ReSukiSU.
 5. Download the AnyKernel3 package, paired official manager and validation artifacts from the completed run.
 
 Scripts and local patches always come from the checked-out workflow commit, without switching to upstream sources.
-Shared options for SukiSU/SUSFS, KPM/KPN, BBG, networking, ZRAM, DroidSpaces and Re-Kernel are retained.
+The three entry workflows call the same `build_oneplus_pad.yml` implementation. GitHub cannot dynamically hide fields by selected target, so each entry exposes applicable options. Shared validation rejects unsupported combinations before downloads or disk cleanup.
 Use `Workflow and Cache Cleanup` to clean build history and caches.
+
+| Option | Pad 2 Pro A15 | Pad 2 Pro A16 | Pad 3 Pro A16 |
+| --- | --- | --- | --- |
+| Custom ZRAM | Optional; system settings by default | Optional; system settings by default | Hidden; no matching 6.12 patch |
+| LZ4 upgrade | Optional; off by default | Optional; off by default | Hidden; compatibility not validated |
+| ZSTD 1.5.7 | Optional; off by default | Hidden | Hidden |
+| Display patch | Hidden | Optional; off by default | Hidden |
+| ADIOS I/O scheduler | Optional; off by default | Optional; off by default | Optional; off by default |
+
+`zram=system` preserves stock ZRAM settings. The legacy `0/lz4kd/8589934592` also means preserving system settings, not disabling ZRAM.
+Pad 2 Pro accepts values such as `1/lz4kd/8589934592`; install the separately generated ZRAM module to apply its algorithm and 8 GiB logical capacity at startup.
+Flashing AK3 alone does not activate that configuration. Logical capacity does not reserve an equal amount of physical RAM upfront.
+Custom ZRAM and LZ4 upgrades can be selected together, but the combination has not passed a full build or device test. `lz4kd` is distinct from ordinary LZ4, so upgrading LZ4 does not directly upgrade `lz4kd`.
+The run summary and `build_manifest.json` record the target, requested memory options and validation scope.
 
 ## Fengchi / HMBIRD
 
@@ -63,9 +77,13 @@ Pad 2 Pro uses [Numbersf/SCHED_PATCH, branch sm8750](https://github.com/Numbersf
 | --- | --- |
 | 一加Pad 2 Pro A15 | `fengchi_oneplus_pad_2_pro.patch` |
 | 一加Pad 2 Pro A16 | `fengchi_oneplus_pad_2_pro_b.patch` |
-| 一加Pad 3 Pro A16 | No matching patch; workflow disables HMBIRD automatically |
+| 一加Pad 3 Pro A16 | Native HMBIRD II / sched_ext path; skips the Pad 2 Pro patch |
 
 Existing HMBIRD source directories are not patched again. Unsupported devices or missing patches produce an explicit error.
+
+The official Pad 3 Pro source includes [HMBIRD II](https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8850/tree/8be53e8b737a83a33512d5e0106cccb010a5c24c/vendor/oplus/kernel/cpu/sched_ext), built as the `oplus_bsp_sched_ext` vendor module.
+Current packages enable `CONFIG_SCHED_CLASS_EXT=y`, BPF and BTF, without repackaging that vendor module. Module loading and actual game scheduling remain unverified on a device.
+Skipping the older patch does not mean disabling stock Fengchi.
 
 ## Pad 2 Pro Android 15 compatibility
 

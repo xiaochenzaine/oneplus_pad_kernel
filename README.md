@@ -6,7 +6,7 @@
 基于 [Numbersf/Action-Build](https://github.com/Numbersf/Action-Build) 修改；保留上游 [LICENSE](LICENSE)。
 本仓库独立维护，初始适配代码来自 `xiaochenzaine/Action-Build` 的 `bbca1d9f8fcf733e96ba5cda64b1ee1239216033` 提交。
 
-[打开构建工作流](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/workflows/build_oneplus_pad.yml)
+构建入口：[一加Pad 2 Pro A15](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/workflows/build_pad_2_pro_a15.yml) · [一加Pad 2 Pro A16](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/workflows/build_pad_2_pro_a16.yml) · [一加Pad 3 Pro A16](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/workflows/build_pad_3_pro_a16.yml)
 
 ## 成品下载与验证
 
@@ -17,7 +17,7 @@
 | --- | --- | --- | --- | --- |
 | 一加Pad 2 Pro A15 | 6.6.57 | [通过](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43954240785) | [通过](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43953536348) | 已编入 |
 | 一加Pad 2 Pro A16 | 6.6.118 | [通过](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43954677418) | [通过](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43954684670) | 已编入 |
-| 一加Pad 3 Pro A16 | 6.12.58 | [通过](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43962282495) | [通过](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43964665574) | 未添加 |
+| 一加Pad 3 Pro A16 | 6.12.58 | [通过](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43962282495) | [通过](https://github.com/xiaochenzaine/oneplus_pad_kernel/actions/runs/43964665574) | 原生 HMBIRD II 框架，运行待验证 |
 
 这些成品均使用 `KPM=N/A`，未开启 ADIOS、ZSTD 升级和显示可选补丁。
 22 项 Python 检查、actionlint 和相关对象编译通过；两份官方 APK 的包名、版本和签名均已验证，没有重新签名。
@@ -42,15 +42,29 @@ Pad 2 Pro 的安卓 15 和安卓 16 源码都使用 `android15-6.6` GKI 分支�
 
 ## 构建
 
-1. 打开 Actions → **Build OnePlus Pad Kernels** → **Run workflow**。
-2. 使用默认的 `main` 分支，选择对应机型和系统版本。安卓 15 的 Pad 2 Pro 选择 **一加Pad 2 Pro A15**。
-3. 风驰按机型自动处理：Pad 2 Pro 自动编入 HMBIRD，Pad 3 Pro 没有对应补丁并自动关闭。
+1. 打开 Actions，进入对应的 **一加Pad 2 Pro A15**、**一加Pad 2 Pro A16** 或 **一加Pad 3 Pro A16** 工作流，再点击 **Run workflow**。
+2. 使用默认的 `main` 分支。入口已固定机型和系统版本，无需在表单中重复选择。
+3. 风驰按机型处理：Pad 2 Pro 编入对应 HMBIRD 补丁；Pad 3 Pro 使用原生 HMBIRD II 所需框架，厂商模块兼容和游戏策略仍需实机确认。
 4. `sukisu_profile` 选择 ReSukiSU 35203（默认）或 SukiSU Ultra 41184；ReSukiSU 保持 `KPM=N/A`。
 5. 构建成功后，在该次运行的 Artifacts 下载 AnyKernel3 包、官方管理器和校验报告。
 
 构建脚本和本地补丁始终来自本次运行检出的提交，不会自动切换回上游仓库。
-通用选项保留 SukiSU/SUSFS、KPM/KPN、BBG、网络扩展、ZRAM、DroidSpaces、Re-Kernel 等。
+三个入口共用 `build_oneplus_pad.yml` 编译流程。GitHub 表单无法根据机型动态隐藏选项，因此在入口层区分可选功能；共用流程也会在下载源码和清理磁盘前再次校验参数。
 `Workflow and Cache Cleanup` 用于清理本仓库的构建记录和缓存。
+
+| 功能 | Pad 2 Pro A15 | Pad 2 Pro A16 | Pad 3 Pro A16 |
+| --- | --- | --- | --- |
+| 自定义 ZRAM | 可选，默认保留系统配置 | 可选，默认保留系统配置 | 不显示；缺少对应 6.12 补丁 |
+| 升级 LZ4 | 可选，默认关闭 | 可选，默认关闭 | 不显示；尚未完成适配验证 |
+| 升级 ZSTD 1.5.7 | 可选，默认关闭 | 不显示 | 不显示 |
+| 显示兼容补丁 | 不显示 | 可选，默认关闭 | 不显示 |
+| ADIOS I/O 调度 | 可选，默认关闭 | 可选，默认关闭 | 可选，默认关闭 |
+
+`zram=system` 表示保留系统原有 ZRAM，并非关闭系统 ZRAM；旧的 `0/lz4kd/8589934592` 仍按保留系统配置处理。
+Pad 2 Pro 可填写 `1/lz4kd/8589934592` 请求自定义算法和 8 GiB 逻辑容量，需要另外安装该次构建生成的 ZRAM 模块。
+算法和容量在模块启动时应用；仅刷 AK3 不代表该配置已经生效。容量不是提前占用同等大小的物理内存。
+自定义 ZRAM 与 LZ4 升级可以组合选择，但当前组合尚未完成构建和实机验证；`lz4kd` 与普通 LZ4 是不同实现，升级 LZ4 不直接升级 `lz4kd`。
+每次运行的摘要与 `build_manifest.json` 会记录所选机型、ZRAM、LZ4 及验证范围。
 
 ## 风驰
 
@@ -60,9 +74,13 @@ Pad 2 Pro 的补丁来自 [Numbersf/SCHED_PATCH](https://github.com/Numbersf/SCH
 | --- | --- |
 | 一加Pad 2 Pro A15 | `fengchi_oneplus_pad_2_pro.patch` |
 | 一加Pad 2 Pro A16 | `fengchi_oneplus_pad_2_pro_b.patch` |
-| 一加Pad 3 Pro A16 | 当前无对应补丁，工作流自动关闭 |
+| 一加Pad 3 Pro A16 | 原厂 HMBIRD II / sched_ext 路线，跳过 Pad 2 Pro 的补丁 |
 
 已内置 HMBIRD 的源码不会重复添加。未找到对应补丁时会明确报错，避免套用其他设备的补丁。
+
+Pad 3 Pro 官方源码包含 [HMBIRD II](https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8850/tree/8be53e8b737a83a33512d5e0106cccb010a5c24c/vendor/oplus/kernel/cpu/sched_ext)，以 `oplus_bsp_sched_ext` 厂商模块构建。
+当前成品确认 `CONFIG_SCHED_CLASS_EXT=y`、BPF 和 BTF 支持，未重新打包该厂商模块；模块是否成功加载和游戏时是否生效仍待实机验证。
+跳过旧 HMBIRD 补丁不代表关闭系统原厂风驰。
 
 ## 安卓 15 兼容处理
 

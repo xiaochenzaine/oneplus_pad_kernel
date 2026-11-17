@@ -1,119 +1,107 @@
-name: Build OnePlus Pad Kernels
-run-name: ${{ inputs.FILE }} / ${{ inputs.sukisu_profile }}
+name: Build OnePlus Pad Kernel (Reusable)
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      FILE:
-        type: choice
+      pad_target:
+        type: string
         description: "机型和系统版本//Device and Android version"
         required: true
-        default: 一加Pad 2 Pro A15
-        options:
-          - 一加Pad 2 Pro A15
-          - 一加Pad 2 Pro A16
-          - 一加Pad 3 Pro A16
       sukisu_profile:
-        type: choice
+        type: string
         description: "Root 与官方管理器配套版本//Paired root and official manager"
-        required: true
+        required: false
         default: resukisu_35203
-        options:
-          - resukisu_35203
-          - ultra_41184
       adios:
         type: boolean
         description: "编入 ADIOS I/O 调度（保留原默认调度）//Optional ADIOS I/O scheduler"
         default: false
       zstd_update:
         type: boolean
-        description: "升级 ZSTD 1.5.7（仅 Pad 2 Pro A15）//ZSTD 1.5.7 (Pad 2 Pro A15 only)"
+        description: "升级ZSTD 1.5.7（仅Pad 2 Pro A15；默认关闭）"
         default: false
       display_fix:
         type: boolean
-        description: "显示兼容补丁（仅 Pad 2 Pro A16/6.6.118）//Optional display fix (Pad 2 Pro A16 only)"
+        description: "显示兼容补丁（仅Pad 2 Pro A16；默认关闭）"
         default: false
-      KPM:
-        type: choice
+      kpm:
+        type: string
         description: "内核模块实现方式//Kernel module implementation method"
-        required: true
+        required: false
         default: N/A
-        options:
-          - KPM
-          - KPN
-          - N/A
-      BUILD_TIME:
+      build_time:
         type: string
         description: "自定义构建时间(输入F使用UTCT或-1关闭)//Custom build time (Enter F to use UTCT, or -1 to disable)"
         required: false
         default: "Wed Jul 15 11:18:49 UTC 2026"
-      LZ4_UPDATE:
+      lz4_update:
         type: boolean
-        description: "是否升级LZ4到上游最新？//Upgrade LZ4 to the latest upstream?"
-        required: true
+        description: "升级内核LZ4实现（仅Pad 2 Pro；不直接升级lz4kd，默认关闭）"
+        required: false
         default: false
-      ZRAM:
+      zram:
         type: string
-        description: "ZRAM(0关闭1开启)/算法名/大小//ZRAM (0: disable, 1: enable) / Algorithm name / Size"
-        required: true
-        default: "0/lz4kd/8589934592"
-      SUFFIX:
+        description: "ZRAM：system保留原厂；自定义填1/算法/字节数，需另装生成的模块（仅Pad 2 Pro）"
+        required: false
+        default: "system"
+      suffix:
         type: string
         description: "自定义内核后缀(不输入使用RAND_STR或-1关闭)//Custom kernel suffix (Leave blank to use RAND_STR, or -1 to disable)"
         required: false
         default: ""
-      RESUBLEVEL:
+      resublevel:
+        type: string
         description: "自定义内核等级欺骗(SUBLEVEL)//Custom kernel SUBLEVEL spoofing"
         required: false
         default: ""
-      FAST_BUILD:
+      fast_build:
         type: boolean
         description: "是否启用极速构建？//Enable ultra-fast build?"
-        required: true
+        required: false
         default: true
-      LSM_BBG:
+      lsm_bbg:
         type: boolean
         description: "是否启用关键分区写入保护模块(BBG)？//Enable critical partition write protection module (BBG)?"
-        required: true
+        required: false
         default: true
-      NETFILTER:
+      netfilter:
         type: boolean
         description: "是否启用网络功能拓展(NETFILTER)？//Enable network feature extensions (NETFILTER)?"
-        required: true
+        required: false
         default: true
-      CCM:
+      ccm:
         type: boolean
-        description: "是否启用网络拥塞控制与管理机制(BBRv1+BBRv3+ECN)？//Enable network congestion control and management mechanism (BBRv1+BBRv3+ECN)?"
-        required: true
+        description: "TCP网络扩展（Pad 2 Pro含BBRv3；Pad 3 Pro含BBR，不保证游戏降延迟）"
+        required: false
         default: true
-      UNICODE_BYPASS:
+      unicode_bypass:
         type: boolean
-        description: "是否添加Unicode不可见字码点绕过读取漏洞修复？//Add patch for Unicode invisible code point read bypass vulnerability?"
-        required: true
+        description: "修改Unicode不可见字符的文件名匹配规则（兼容性待验证，默认关闭）"
+        required: false
         default: false
-      DROID_SPACES:
+      droid_spaces:
         type: boolean
         description: "是否添加轻量级Linux容器支持(DroidSpaces)？//Add lightweight Linux container support (DroidSpaces)?"
-        required: true
+        required: false
         default: false
-      RE_KERNEL:
+      re_kernel:
         type: boolean
         description: "是否添加Re-Kernel？//Add Re-Kernel?"
-        required: true
+        required: false
         default: false
-      SPACE_NOCLEAN:
+      space_noclean:
         type: boolean
         description: "是否停用空间清扫？//Disable workspace cleaning?"
-        required: true
+        required: false
         default: false
-      BUILD_NOCACHE:
+      build_nocache:
         type: boolean
         description: "是否停用此次缓存？//Disable caching for this build?"
-        required: true
+        required: false
         default: false
 
 jobs:
   build:
-    name: ${{ github.event.inputs.FAST_BUILD == 'true' && ' [FAST]' || '' }}${{ github.event.inputs.KPM == 'KPM' && ' [KPM]' || github.event.inputs.KPM == 'KPN' && ' [KPN]' || '' }}${{ github.event.inputs.LSM_BBG == 'true' && ' [BBG]' || '' }}${{ startsWith(github.event.inputs.FILE, '一加Pad 2 Pro') && ' [HMBIRD]' || '' }}${{ github.event.inputs.DROID_SPACES == 'true' && ' [DS]' || '' }}${{ startsWith(github.event.inputs.ZRAM, '1/') && ' [ZRAM]' || '' }}${{ github.event.inputs.RE_KERNEL == 'true' && ' [REKER]' || '' }}${{ github.event.inputs.LZ4_UPDATE == 'true' && ' [LZ4UPD]' || '' }}For ${{ github.event.inputs.FILE }} ${{ github.event.inputs.SUFFIX }}
+    name: ${{ inputs.fast_build == true && ' [FAST]' || '' }}${{ inputs.kpm == 'KPM' && ' [KPM]' || inputs.kpm == 'KPN' && ' [KPN]' || '' }}${{ inputs.lsm_bbg == true && ' [BBG]' || '' }}${{ startsWith(inputs.pad_target, '一加Pad 2 Pro') && ' [HMBIRD]' || '' }}${{ inputs.droid_spaces == true && ' [DS]' || '' }}${{ startsWith(inputs.zram, '1/') && ' [ZRAM]' || '' }}${{ inputs.re_kernel == true && ' [REKER]' || '' }}${{ inputs.lz4_update == true && ' [LZ4UPD]' || '' }}For ${{ inputs.pad_target }} ${{ inputs.suffix }}
     runs-on: ubuntu-latest
     env:
       CCACHE_COMPILERCHECK: "none"
@@ -125,8 +113,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Validate Device Build Options
+        env:
+          pad_build_inputs: ${{ toJSON(inputs) }}
+        run: python3 scripts/validate_build_inputs.py --report-path build_options.json
+
       - name: Maximize Build Space
-        if: ${{ github.event.inputs.SPACE_NOCLEAN == 'false' }}
+        if: ${{ inputs.space_noclean == false }}
         env:
           ROOT_RESERVE_MB: '8192'
           TEMP_RESERVE_MB: '2048'
@@ -147,13 +140,13 @@ jobs:
       - name: Extract Manifest Info
         id: extract_info
         env:
-          pad_target: ${{ github.event.inputs.FILE }}
+          pad_target: ${{ inputs.pad_target }}
         run: python3 scripts/resolve_pad_manifest.py "$pad_target"
 
       - name: Debug Show Selected Inputs
         env:
-          BUILD_TIME: ${{ github.event.inputs.BUILD_TIME }}
-          SUFFIX: ${{ github.event.inputs.SUFFIX }}
+          BUILD_TIME: ${{ inputs.build_time }}
+          SUFFIX: ${{ inputs.suffix }}
         run: |
           echo "------------------------------"
 
@@ -163,17 +156,21 @@ jobs:
           echo "Selected BUILD_METHOD: ${{ env.BUILD_METHOD }}"
           echo "Selected FILE: ${{ env.FILE }}"
           echo "Selected root: ${{ inputs.sukisu_profile }}"
-          echo "Selected KPM: ${{ github.event.inputs.KPM }}"
-          echo "Selected ZRAM: ${{ github.event.inputs.ZRAM }}"
-          echo "Selected LSM_BBG: ${{ github.event.inputs.LSM_BBG }}"
-          echo "Selected NETFILTER: ${{ github.event.inputs.NETFILTER }}"
-          echo "Selected CCM: ${{ github.event.inputs.CCM }}"
-          echo "Selected FAST_BUILD: ${{ github.event.inputs.FAST_BUILD }}"
-          echo "Selected SCHED_HMBIRD: ${{ startsWith(github.event.inputs.FILE, '一加Pad 2 Pro') && 'true' || 'false' }} (derived from FILE)"
-          echo "Selected UNICODE_BYPASS: ${{ github.event.inputs.UNICODE_BYPASS }}"
-          echo "Selected DROID_SPACES: ${{ github.event.inputs.DROID_SPACES }}"
-          echo "Selected RE_KERNEL: ${{ github.event.inputs.RE_KERNEL }}"
-          echo "Selected LZ4_UPDATE: ${{ github.event.inputs.LZ4_UPDATE }}"
+          echo "Selected KPM: ${{ inputs.kpm }}"
+          echo "Selected ZRAM: ${{ inputs.zram }}"
+          echo "Selected LSM_BBG: ${{ inputs.lsm_bbg }}"
+          echo "Selected NETFILTER: ${{ inputs.netfilter }}"
+          echo "Selected CCM: ${{ inputs.ccm }}"
+          echo "Selected FAST_BUILD: ${{ inputs.fast_build }}"
+          if [[ "$FILE" == "oneplus_pad_3_pro" ]]; then
+            echo "Fengchi: native HMBIRD II framework; vendor module and runtime state unverified"
+          else
+            echo "Fengchi: builtin HMBIRD selected for Pad 2 Pro"
+          fi
+          echo "Selected UNICODE_BYPASS: ${{ inputs.unicode_bypass }}"
+          echo "Selected DROID_SPACES: ${{ inputs.droid_spaces }}"
+          echo "Selected RE_KERNEL: ${{ inputs.re_kernel }}"
+          echo "Selected LZ4_UPDATE: ${{ inputs.lz4_update }}"
           echo "Custom BUILD_TIME: $BUILD_TIME"
           echo -n "BUILD_TIME Unicode: "
           CHECK_TEXT="$BUILD_TIME" python3 "$GITHUB_WORKSPACE/kernel_workspace/action_build/scripts/check_unicode_format.py" --mode build_time
@@ -194,7 +191,7 @@ jobs:
           free -h
 
       - name: Set Cache Environment
-        if: ${{ github.event.inputs.BUILD_NOCACHE == 'false' }}
+        if: ${{ inputs.build_nocache == false }}
         run: |
           echo "CCACHE_DIR=$HOME/.ccache_${{ env.FILE }}" >> $GITHUB_ENV
           mkdir -p "$HOME/.ccache_${{ env.FILE }}"
@@ -223,7 +220,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           selected_profile: ${{ inputs.sukisu_profile }}
         run: |
-          if [[ "$selected_profile" == "resukisu_35203" && "${{ inputs.KPM }}" != "N/A" ]]; then
+          if [[ "$selected_profile" == "resukisu_35203" && "${{ inputs.kpm }}" != "N/A" ]]; then
             echo "::error::ReSukiSU does not provide the Ultra KPM implementation. Select KPM=N/A."
             exit 1
           fi
@@ -243,15 +240,15 @@ jobs:
          sudo cp -f "$LIB_DIR/ccache" /usr/bin/ccache && sudo chmod +x /usr/bin/ccache
 
       - name: Restore Ccache
-        if: ${{ github.event.inputs.BUILD_NOCACHE == 'false' }}
+        if: ${{ inputs.build_nocache == false }}
         id: restore-ccache
         uses: actions/cache/restore@v5
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ env.FILE }}-${{ env.BUILD_METHOD }}-${{ github.event.inputs.FAST_BUILD == 'true' && 'alpha' || 'beta' }}-17.0
+          key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ env.FILE }}-${{ env.BUILD_METHOD }}-${{ inputs.fast_build == true && 'alpha' || 'beta' }}-17.0
 
       - name: Restore ThinLTO Cache
-        if: ${{ github.event.inputs.BUILD_NOCACHE == 'false' && github.event.inputs.FAST_BUILD == 'true' }}
+        if: ${{ inputs.build_nocache == false && inputs.fast_build == true }}
         id: restore-thinlto
         uses: actions/cache/restore@v5
         with:
@@ -259,7 +256,7 @@ jobs:
           key: thinlto-${{ runner.os }}-${{ github.ref_name }}-${{ env.FILE }}-17.0
 
       - name: Initialize Ccache
-        if: ${{ github.event.inputs.BUILD_NOCACHE == 'false' }}
+        if: ${{ inputs.build_nocache == false }}
         run: |
           INIT_FLAG="${{ env.CCACHE_DIR }}/.ccache_initialized"
           if command -v ccache >/dev/null 2>&1; then
@@ -360,7 +357,7 @@ jobs:
           ORIG_VERSION=$(awk '/^VERSION =/ {v=$3} /^PATCHLEVEL =/ {p=$3} /^SUBLEVEL =/ {s=$3} END {print v"."p"."s}' ./common/Makefile)
 
           # 强制修改 SUBLEVEL (内核等级)
-          RESUBLEVEL="${{ github.event.inputs.RESUBLEVEL }}"
+          RESUBLEVEL="${{ inputs.resublevel }}"
           if [ -n "$RESUBLEVEL" ]; then
             echo "修改 SUBLEVEL 为 $RESUBLEVEL"
             sed -i "s/^SUBLEVEL[[:space:]]*=[[:space:]]*.*/SUBLEVEL = $RESUBLEVEL/" ./common/Makefile
@@ -415,11 +412,11 @@ jobs:
 
       # 自定义内核后缀
       - name: Custom Kernel Suffix if set
-        if: ${{ github.event.inputs.SUFFIX != '' && github.event.inputs.SUFFIX != '-1' }}
+        if: ${{ inputs.suffix != '' && inputs.suffix != '-1' }}
         run: |
           cd kernel_workspace/kernel_platform
-          SUFFIX="${{ github.event.inputs.SUFFIX }}"
-          FAST_BUILD="${{ github.event.inputs.FAST_BUILD }}"
+          SUFFIX="${{ inputs.suffix }}"
+          FAST_BUILD="${{ inputs.fast_build }}"
 
           for f in ./common/scripts/setlocalversion ./"$KERNEL_REPOS"/scripts/setlocalversion ./external/dtc/scripts/setlocalversion; do
             [ -f "$f" ] || continue
@@ -454,10 +451,10 @@ jobs:
 
       # 伪官方格式的随机后缀（仅在 SUFFIX 未设置时生效）*
       - name: Custom Kernel Random Suffix if empty
-        if: ${{ github.event.inputs.SUFFIX == '' }}
+        if: ${{ inputs.suffix == '' }}
         run: |
           cd kernel_workspace/kernel_platform
-          FAST_BUILD="${{ github.event.inputs.FAST_BUILD }}"
+          FAST_BUILD="${{ inputs.fast_build }}"
 
           # 生成随机数字和随机hash
           RANDOM_DIGIT=$(od -An -N1 -tu1 < /dev/urandom | tr -d '[:space:]' | awk '{print $1 % 11}')
@@ -502,10 +499,10 @@ jobs:
       - name: Apply Paired SUSFS
         run: |
           cd kernel_workspace
-          if [ "${{ inputs.RE_KERNEL }}" = "true" ]; then
+          if [ "${{ inputs.re_kernel }}" = "true" ]; then
             git clone https://github.com/Sakion-Team/Re-Kernel.git
           fi
-          if [ "${{ inputs.LZ4_UPDATE }}" = "true" ]; then
+          if [ "${{ inputs.lz4_update }}" = "true" ]; then
             git clone https://github.com/Numbersf/lz4_oplus.git
           fi
           git clone https://github.com/ShirkNeko/SukiSU_patch.git
@@ -513,7 +510,7 @@ jobs:
           cp "../susfs4ksu/kernel_patches/50_add_susfs_in_gki-${KMI}.patch" ./common/
           cp ../susfs4ksu/kernel_patches/fs/* ./common/fs/
           cp ../susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
-          if [[ "${{ inputs.ZRAM }}" == 1* ]]; then
+          if [[ "${{ inputs.zram }}" == 1* ]]; then
             cp -r ../SukiSU_patch/other/zram/lz4k/include/linux/* ./common/include/linux/
             cp -r ../SukiSU_patch/other/zram/lz4k/lib/* ./common/lib/
             cp -r ../SukiSU_patch/other/zram/lz4k/crypto/* ./common/crypto/
@@ -544,7 +541,7 @@ jobs:
       # OGKI conversion is inherited from the Pad build workflow.
 
       - name: Apply Convert HMBIRD_OGKI to HMBIRD_GKI
-        if: ${{ (fromJSON(env.VERSIONLEVEL) > 6 || (fromJSON(env.VERSIONLEVEL) == 6 && fromJSON(env.PATCHLEVEL) >= 6)) && github.event.inputs.FILE == '一加Pad 3 Pro A16' }}
+        if: ${{ (fromJSON(env.VERSIONLEVEL) > 6 || (fromJSON(env.VERSIONLEVEL) == 6 && fromJSON(env.PATCHLEVEL) >= 6)) && inputs.pad_target == '一加Pad 3 Pro A16' }}
         run: |
           PATCH_DIR="${GITHUB_WORKSPACE}/kernel_workspace/action_build/patches"
           cd kernel_workspace/kernel_platform/common
@@ -562,7 +559,7 @@ jobs:
           check_rejects .
 
       - name: Apply BBRv3
-        if: ${{ github.event.inputs.CCM == 'true' && env.KMI != 'android16-6.12' }}
+        if: ${{ inputs.ccm == true && env.KMI != 'android16-6.12' }}
         run: |
           PATCH_DIR="${GITHUB_WORKSPACE}/kernel_workspace/action_build/patches"
           cd kernel_workspace/kernel_platform/common
@@ -571,7 +568,7 @@ jobs:
           check_rejects .
 
       - name: Apply UNICODE_BYPASS
-        if: ${{ github.event.inputs.UNICODE_BYPASS == 'true' }}
+        if: ${{ inputs.unicode_bypass == true }}
         run: |
           PATCH_DIR="${GITHUB_WORKSPACE}/kernel_workspace/action_build/patches"
           cd kernel_workspace/kernel_platform/common
@@ -580,7 +577,7 @@ jobs:
           check_rejects .
 
       - name: Apply RE_KERNEL
-        if: ${{ github.event.inputs.RE_KERNEL == 'true' }}
+        if: ${{ inputs.re_kernel == true }}
         run: |
           RE_DIR="${GITHUB_WORKSPACE}/kernel_workspace/Re-Kernel/LKM-Source"
           cd kernel_workspace/kernel_platform/common
@@ -595,7 +592,7 @@ jobs:
       - name: Apply DROID_SPACES
         env:
           FILE: ${{ env.FILE }}
-        if: ${{ github.event.inputs.DROID_SPACES == 'true' }}
+        if: ${{ inputs.droid_spaces == true }}
         run: |
           PATCH_DIR="${GITHUB_WORKSPACE}/kernel_workspace/action_build/patches"
           cd kernel_workspace/kernel_platform/common
@@ -641,42 +638,44 @@ jobs:
           check_rejects .
 
       - name: Apply LZ4_DEV
-        if: ${{ github.event.inputs.LZ4_UPDATE == 'true' }}
+        if: ${{ inputs.lz4_update == true }}
         run: |
           set -euo pipefail
           LZ4_REPO="${GITHUB_WORKSPACE}/kernel_workspace/lz4_oplus"
           cd kernel_workspace/kernel_platform/common
           . "${LZ4_REPO}/apply_lz4_oplus.sh"
 
-      - name: Apply ZRAM
-        if: startsWith(github.event.inputs.ZRAM, '1/')
+      - name: Apply Custom ZRAM for Pad 2 Pro
+        if: startsWith(inputs.zram, '1/')
         run: |
-          ZRAM="${{ github.event.inputs.ZRAM }}"
-          if [[ "$(grep -o '/' <<< "$ZRAM" | wc -l)" -lt 2 ]]; then
-            echo "错误: ZRAM 参数缺少必要的分隔符 '/'，格式应为: 总开关0关1开/算法名(前面输入0时无效)/大小(前面输入0时无效)"
-            exit 10
+          set -euo pipefail
+          if [[ "$KERNEL_VERSION" != "6.6" ]]; then
+            echo "::error::Custom ZRAM patches are currently available only for Pad 2 Pro / 6.6."
+            exit 1
           fi
-          # 解析字段：开关状态 / 算法名 / 大小
-          IFS='/' read -r ZRAM_SWSTA ZRAM_ALGO ZRAM_SIZE <<< "$ZRAM"
-          echo "ZRAM_ALGO=$ZRAM_ALGO" >> $GITHUB_ENV
-          echo "ZRAM_ALGO_U=${ZRAM_ALGO^^}" >> $GITHUB_ENV
-          echo "ZRAM_SIZE=$ZRAM_SIZE" >> $GITHUB_ENV
-
-          PATCH_DIR="${GITHUB_WORKSPACE}/kernel_workspace/SukiSU_patch/other/zram/zram_patch/${{ env.KERNEL_VERSION }}"
+          zram_config="${{ inputs.zram }}"
+          IFS='/' read -r zram_enabled zram_algorithm zram_bytes <<< "$zram_config"
+          echo "ZRAM_ALGO=$zram_algorithm" >> "$GITHUB_ENV"
+          echo "ZRAM_ALGO_U=${zram_algorithm^^}" >> "$GITHUB_ENV"
+          echo "ZRAM_SIZE=$zram_bytes" >> "$GITHUB_ENV"
+          zram_patch_dir="$GITHUB_WORKSPACE/kernel_workspace/SukiSU_patch/other/zram/zram_patch/$KERNEL_VERSION"
+          for zram_patch_name in lz4kd.patch lz4k_oplus.patch; do
+            if [[ ! -f "$zram_patch_dir/$zram_patch_name" ]]; then
+              echo "::error::Missing custom ZRAM patch: $zram_patch_name ($KERNEL_VERSION)"
+              exit 1
+            fi
+          done
           cd kernel_workspace/kernel_platform/common
-          echo "正在打lz4kd补丁"
-          patch -p1 -F 3 < "${PATCH_DIR}/lz4kd.patch" || true
-          echo 'lz4kd_patch完成'
-          echo "正在打lz4k_oplus补丁"
-          patch -p1 -F 3 < "${PATCH_DIR}/lz4k_oplus.patch" || true
-          echo 'lz4k_oplus_patch完成'
-          source $REJ_CHECKER
-          check_rejects .
+          for zram_patch_name in lz4kd.patch lz4k_oplus.patch; do
+            zram_patch_args=(patch --batch --forward --fuzz=3 -p1 -i "$zram_patch_dir/$zram_patch_name")
+            "${zram_patch_args[@]}" --dry-run
+            "${zram_patch_args[@]}"
+          done
 
       - name: Apply SCHED_HMBIRD
         env:
           FILE: ${{ env.FILE }}
-        if: ${{ github.event.inputs.FILE != '一加Pad 3 Pro A16' }}
+        if: ${{ inputs.pad_target != '一加Pad 3 Pro A16' }}
         run: |
           cd kernel_workspace/kernel_platform/common
           for sched_dir in ./kernel/sched/hmbird* ./vendor/oplus/kernel/cpu/sched_ext/hmbird*; do
@@ -701,7 +700,7 @@ jobs:
           check_rejects .
 
       - name: Apply LSM_BBG
-        if: ${{ github.event.inputs.LSM_BBG == 'true' }}
+        if: ${{ inputs.lsm_bbg == true }}
         run: |
           cd kernel_workspace/kernel_platform/common
           echo "正在启用内核级基带保护支持…"
@@ -757,10 +756,10 @@ jobs:
           set_config "CONFIG_KSU=y"
 
           # KPM配置
-          if [ "${{ github.event.inputs.KPM }}" = "KPM" ]; then
+          if [ "${{ inputs.kpm }}" = "KPM" ]; then
             set_config "CONFIG_KPM=y"
           fi
-          if [ "${{ github.event.inputs.KPM }}" != "KPM" ]; then
+          if [ "${{ inputs.kpm }}" != "KPM" ]; then
             set_config "CONFIG_KPM=n"
           fi
 
@@ -794,7 +793,7 @@ jobs:
           set_config "CONFIG_TMPFS_POSIX_ACL=y"
 
           # BBR & ECN配置*
-          if [ "${{ github.event.inputs.CCM }}" = "true" ]; then
+          if [ "${{ inputs.ccm }}" = "true" ]; then
             set_hide_config "CONFIG_TCP_CONG_ADVANCED=y"
             set_config "CONFIG_TCP_CONG_BBR=y"
             if [ "$KMI" != "android16-6.12" ]; then
@@ -811,13 +810,13 @@ jobs:
           fi
 
           # Re-Kernel配置*
-          if [ "${{ github.event.inputs.RE_KERNEL }}" = "true" ]; then
+          if [ "${{ inputs.re_kernel }}" = "true" ]; then
             set_config "CONFIG_REKERNEL=y"
             set_config "CONFIG_REKERNEL_NETWORK=y"
           fi
 
           # ZRAM配置*
-          if [[ "${{ github.event.inputs.ZRAM }}" == 1* ]]; then
+          if [[ "${{ inputs.zram }}" == 1* ]]; then
             set_config "CONFIG_CRYPTO_LZ4HC=y"
             set_config "CONFIG_CRYPTO_LZ4K=y"
             set_config "CONFIG_CRYPTO_LZ4KD=y"
@@ -827,12 +826,12 @@ jobs:
           fi
 
           # LSM配置*
-          if [ "${{ github.event.inputs.LSM_BBG }}" = "true" ]; then
+          if [ "${{ inputs.lsm_bbg }}" = "true" ]; then
             set_config "CONFIG_BBG=y"
           fi
 
           # DROID_SPACES配置*
-          if [ "${{ github.event.inputs.DROID_SPACES }}" = "true" ]; then
+          if [ "${{ inputs.droid_spaces }}" = "true" ]; then
             set_config "CONFIG_NTSYNC=y"
             set_config "CONFIG_MACVLAN=y"
             set_config "CONFIG_SYSVIPC=y"
@@ -848,7 +847,7 @@ jobs:
           fi
 
           # IPSET & IPv6_NAT & TTL配置*
-          if [ "${{ github.event.inputs.NETFILTER }}" = "true" ]; then
+          if [ "${{ inputs.netfilter }}" = "true" ]; then
             set_config "CONFIG_NET_SCH_FQ=y"
             set_config "CONFIG_NET_SCH_FQ_CODEL=y"
             set_config "CONFIG_NET_SCH_CAKE=y"
@@ -900,10 +899,10 @@ jobs:
 
       # Custom kernel build time, without adding #1 SMP PREEMPT 自定义内核构建时间，不要加入#1 SMP PREEMPT
       - name: Custom BUILD_TIME
-        if: ${{ github.event.inputs.BUILD_TIME != '-1' }}
+        if: ${{ inputs.build_time != '-1' }}
         shell: bash
         run: |
-          INPUT_TIME="${{ github.event.inputs.BUILD_TIME }}"
+          INPUT_TIME="${{ inputs.build_time }}"
           if [[ -n "$INPUT_TIME" && "$INPUT_TIME" != "F" ]]; then
             DATESTR="$INPUT_TIME"
             echo "Using input BUILD_TIME: $DATESTR"
@@ -936,7 +935,7 @@ jobs:
           fi
 
       - name: Build Kernel FAST
-        if: ${{ github.event.inputs.FAST_BUILD == 'true' }}
+        if: ${{ inputs.fast_build == true }}
         id: fast_build
         run: |
           cd kernel_workspace/kernel_platform
@@ -1115,7 +1114,7 @@ jobs:
           ccache -s
 
       - name: Fallback to Build Kernel
-        if: ${{ github.event.inputs.FAST_BUILD == 'false' || steps.fast_build.outputs.fallback == 'true' }}
+        if: ${{ inputs.fast_build == false || steps.fast_build.outputs.fallback == 'true' }}
         run: |
           cd kernel_workspace
           if [ -f ./kernel_platform/build_with_bazel.py ]; then
@@ -1156,14 +1155,14 @@ jobs:
           fi
 
       - name: Apply KPX and Replace Image
-        if: ${{ github.event.inputs.KPM != 'N/A' }}
+        if: ${{ inputs.kpm != 'N/A' }}
         run: |
           KPM_DIR="${GITHUB_WORKSPACE}/kernel_workspace/SukiSU_patch/kpm"
           # KPM_DIR="${GITHUB_WORKSPACE}/kernel_workspace/action_build/patches/kpm"
           KPN_DIR="${GITHUB_WORKSPACE}/kernel_workspace/action_build/patches/kpn"
           OUT_DIR="${GITHUB_WORKSPACE}/kernel_workspace/kernel_platform/out/Final-Image-Find"
           cd "${OUT_DIR}"
-          if [ "${{ github.event.inputs.KPM }}" = "KPM" ]; then
+          if [ "${{ inputs.kpm }}" = "KPM" ]; then
             cp "${KPM_DIR}/patch_linux" .
             chmod +x patch_linux
             ./patch_linux
@@ -1190,7 +1189,8 @@ jobs:
           if [[ "$FILE" != "oneplus_pad_3_pro" ]]; then report_args+=(--require-hmbird); fi
           python3 scripts/write_build_report.py --image AnyKernel3/Image --out-dir "$kernel_out_dir" \
             --platform-dir kernel_workspace/kernel_platform --bundle-dir kernel_workspace/manager_bundle \
-            --package-dir AnyKernel3 --report-dir kernel_validation --device "$FILE" "${report_args[@]}"
+            --package-dir AnyKernel3 --report-dir kernel_validation --device "$FILE" \
+            --inputs-report build_options.json "${report_args[@]}"
 
       - name: Upload Official Manager
         uses: actions/upload-artifact@v7
@@ -1209,7 +1209,7 @@ jobs:
       - name: Set zip Suffix
         id: suffix
         run: |
-          echo "value=${{ env.ZRAM_ALGO_U && format('_{0}', env.ZRAM_ALGO_U) || '' }}${{ github.event.inputs.KPM == 'KPM' && '_KPM' || github.event.inputs.KPM == 'KPN' && '_KPN' || '' }}${{ github.event.inputs.LSM_BBG == 'true' && '_BBG' || '' }}_ILH${{ startsWith(github.event.inputs.FILE, '一加Pad 2 Pro') && '_HMBIRD' || '' }}${{ github.event.inputs.DROID_SPACES== 'true' && '_DS' || '' }}${{ github.event.inputs.RE_KERNEL == 'true' && '_REKER' || '' }}${{ github.event.inputs.LZ4_UPDATE == 'true' && '_LZ4UPD' || '' }}" >> $GITHUB_OUTPUT
+          echo "value=${{ env.ZRAM_ALGO_U && format('_{0}', env.ZRAM_ALGO_U) || '' }}${{ inputs.kpm == 'KPM' && '_KPM' || inputs.kpm == 'KPN' && '_KPN' || '' }}${{ inputs.lsm_bbg == true && '_BBG' || '' }}_ILH${{ startsWith(inputs.pad_target, '一加Pad 2 Pro') && '_HMBIRD' || '' }}${{ inputs.droid_spaces== true && '_DS' || '' }}${{ inputs.re_kernel == true && '_REKER' || '' }}${{ inputs.lz4_update == true && '_LZ4UPD' || '' }}" >> $GITHUB_OUTPUT
 
       - name: Upload AnyKernel3
         uses: actions/upload-artifact@v7
@@ -1218,67 +1218,57 @@ jobs:
           path: ./AnyKernel3/*
 
       - name: Extract and Process ZRAM Module
-        if: startsWith(github.event.inputs.ZRAM, '1/')
-        id: zram_find
+        if: startsWith(inputs.zram, '1/')
         run: |
-          set -e
-          ZRAM_ZIP="${GITHUB_WORKSPACE}/kernel_workspace/action_build/ZRAM.zip"
+          set -euo pipefail
+          zram_zip="$GITHUB_WORKSPACE/kernel_workspace/action_build/ZRAM.zip"
 
-          if [ ! -f "$ZRAM_ZIP" ]; then
-            echo "❌ 未找到 ZRAM.zip: $ZRAM_ZIP"
-            echo "upload=false" >> "$GITHUB_OUTPUT"
-            exit 0
+          if [[ ! -f "$zram_zip" ]]; then
+            echo "::error::Selected custom ZRAM, but its module template is missing: $zram_zip"
+            exit 1
           fi
 
-          unzip "$ZRAM_ZIP" -d ZRAM-Module
+          unzip "$zram_zip" -d zram_module
 
-          CONFIG_PROP="ZRAM-Module/config.prop"
-          if [ -f "$CONFIG_PROP" ]; then
-            echo "修改 config.prop"
-            sed -i "s/^ZRAM_ALGO=.*/ZRAM_ALGO=${ZRAM_ALGO}/" "$CONFIG_PROP"
-            sed -i "s/^ZRAM_SIZE=.*/ZRAM_SIZE=${ZRAM_SIZE}/" "$CONFIG_PROP"
-            echo "ZRAM_ALGO=${ZRAM_ALGO}"
-            echo "ZRAM_SIZE=${ZRAM_SIZE}"
+          config_prop="zram_module/config.prop"
+          if [[ -f "$config_prop" ]]; then
+            sed -i "s/^ZRAM_ALGO=.*/ZRAM_ALGO=${ZRAM_ALGO}/" "$config_prop"
+            sed -i "s/^ZRAM_SIZE=.*/ZRAM_SIZE=${ZRAM_SIZE}/" "$config_prop"
           else
-            echo "❌ 未找到 config.prop"
-            echo "upload=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            echo "::error::Selected custom ZRAM, but its config.prop is missing."
+            exit 1
           fi
 
-          target="./ZRAM-Module/zram/zram.ko"
-          echo "查找 zram.ko 模块文件..."
+          zram_target="zram_module/zram/zram.ko"
           search_paths=(
-            "./kernel_workspace/kernel_platform/out"
-            "./kernel_workspace/device/qcom"
+            "kernel_workspace/kernel_platform"
+            "kernel_workspace/device/qcom"
           )
           zram_path=""
-          for path in "${search_paths[@]}"; do
-            if [ -d "$path" ]; then
-              zram_path=$(find "$path" -type f -name "zram.ko" | head -n 1)
-              [ -n "$zram_path" ] && break
+          for search_path in "${search_paths[@]}"; do
+            if [[ -d "$search_path" ]]; then
+              zram_path=$(find "$search_path" -type f -name zram.ko -print -quit)
+              [[ -n "$zram_path" ]] && break
             fi
           done
-          if [ -z "$zram_path" ]; then
-            zram_path=$(find "./kernel_workspace" -type f -name "zram.ko" | head -n 1)
-          fi
-          if [ -n "$zram_path" ] && [ -f "$zram_path" ]; then
-            echo "✅ zram.ko file finally located at: $zram_path"
-            install -D "$zram_path" "$target"
+          if [[ -n "$zram_path" && -f "$zram_path" ]]; then
+            echo "Packaging compiled ZRAM module: $zram_path"
+            install -D "$zram_path" "$zram_target"
           else
-            echo "❌ 未找到 zram.ko 文件，可能是未支持的内核版本或构建失败"
-            echo "upload=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            echo "::error::Selected custom ZRAM, but no compiled zram.ko was produced."
+            exit 1
           fi
 
       - name: Upload ZRAM Module
-        if: startsWith(github.event.inputs.ZRAM, '1/') && steps.zram_find.outputs.upload != 'false'
+        if: startsWith(inputs.zram, '1/')
         uses: actions/upload-artifact@v7
         with:
-          name: ZRAM-Module_${{ env.KERNEL_VERSION }}_${{ steps.extract_info.outputs.value }}
-          path: ZRAM-Module/*
+          name: zram_module_${{ env.KERNEL_VERSION }}_${{ steps.extract_info.outputs.value }}
+          path: zram_module/*
+          if-no-files-found: error
 
       - name: Check Cache Size Before Save
-        if: ${{ github.event.inputs.BUILD_NOCACHE == 'false' }}
+        if: ${{ inputs.build_nocache == false }}
         id: cache_size_check
         run: |
           check_size() {
@@ -1301,14 +1291,14 @@ jobs:
           check_size "${{ github.workspace }}/kernel_workspace/.thinlto-cache" "thinlto"
 
       - name: Save Ccache
-        if: ${{ github.event.inputs.BUILD_NOCACHE == 'false' && steps.cache_size_check.outputs.ccache_save == 'true' && steps.restore-ccache.outputs.cache-hit != 'true' }}
+        if: ${{ inputs.build_nocache == false && steps.cache_size_check.outputs.ccache_save == 'true' && steps.restore-ccache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v5
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ env.FILE }}-${{ env.BUILD_METHOD }}-${{ github.event.inputs.FAST_BUILD == 'true' && 'alpha' || 'beta' }}-17.0
+          key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ env.FILE }}-${{ env.BUILD_METHOD }}-${{ inputs.fast_build == true && 'alpha' || 'beta' }}-17.0
 
       - name: Save ThinLTO Cache
-        if: ${{ github.event.inputs.BUILD_NOCACHE == 'false' && github.event.inputs.FAST_BUILD == 'true' && steps.cache_size_check.outputs.thinlto_save == 'true' && steps.restore-thinlto.outputs.cache-hit != 'true' }}
+        if: ${{ inputs.build_nocache == false && inputs.fast_build == true && steps.cache_size_check.outputs.thinlto_save == 'true' && steps.restore-thinlto.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v5
         with:
           path: ${{ github.workspace }}/kernel_workspace/.thinlto-cache

@@ -10,11 +10,11 @@ class workflow_input_tests(unittest.TestCase):
         workflow_text = workflow_path.read_text(encoding="utf-8")
         self.assertNotIn("\n      SCHED_HMBIRD:\n", workflow_text)
         self.assertIn(
-            "startsWith(github.event.inputs.FILE, '一加Pad 2 Pro')",
+            "startsWith(inputs.pad_target, '一加Pad 2 Pro')",
             workflow_text,
         )
         self.assertIn(
-            "github.event.inputs.FILE != '一加Pad 3 Pro A16'",
+            "inputs.pad_target != '一加Pad 3 Pro A16'",
             workflow_text,
         )
         self.assertIn(

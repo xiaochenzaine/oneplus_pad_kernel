@@ -47,6 +47,7 @@ def main():
     parser.add_argument("--report-dir", type=Path, required=True)
     parser.add_argument("--device", required=True)
     parser.add_argument("--require-hmbird", action="store_true")
+    parser.add_argument("--inputs-report", type=Path)
     args = parser.parse_args()
     lock_path = args.bundle_dir / "sukisu_lock.json"
     profile = json.loads(lock_path.read_text())
@@ -74,6 +75,14 @@ def main():
         f"# {path.relative_to(args.out_dir).as_posix()}\n{path.read_text()}"
         for path in sorted(matching_commands)), encoding="utf-8")
     copied_files = [{"file": command_report.name, "sha256": file_sha256(command_report)}]
+    build_options = None
+    if args.inputs_report:
+        build_options = json.loads(args.inputs_report.read_text(encoding="utf-8"))
+        if build_options["device"] != args.device:
+            raise ValueError("Validated input target differs from the compiled device")
+        options_report = args.report_dir / "build_options.json"
+        shutil.copyfile(args.inputs_report, options_report)
+        copied_files.append({"file": options_report.name, "sha256": file_sha256(options_report)})
     if profile["profile"] == "ultra_41184":
         hook_report = args.report_dir / "root_lsm_hook.c"
         shutil.copyfile(source_dir / "kernel" / "hook" / "lsm_hook.c", hook_report)
@@ -92,9 +101,12 @@ def main():
         "image_sha256": file_sha256(args.image), "apk_sha256": file_sha256(apk_path),
         "compiled_version_verified": True,
         "hmbird_requested": args.require_hmbird,
+        "build_options": build_options,
         "configuration": {key: value for key, value in config.items() if key.startswith(
             ("CONFIG_KSU", "CONFIG_SECCOMP", "CONFIG_STACKPROTECTOR", "CONFIG_TLS_STATS",
-             "CONFIG_MQ_IOSCHED", "CONFIG_DEFAULT_", "CONFIG_NET_SCH", "CONFIG_HMBIRD"))},
+             "CONFIG_MQ_IOSCHED", "CONFIG_DEFAULT_", "CONFIG_NET_SCH", "CONFIG_HMBIRD",
+             "CONFIG_SCHED_CLASS_EXT", "CONFIG_BPF", "CONFIG_DEBUG_INFO_BTF", "CONFIG_ZRAM",
+             "CONFIG_CRYPTO_LZ4", "CONFIG_LZ4"))},
         "stock_module_abi": "not_verified_against_stock_modules",
         "device_boot_test": "not_performed", "validation_files": copied_files,
         "optional_patches": json.loads((args.bundle_dir / "optional_patches.json").read_text()),

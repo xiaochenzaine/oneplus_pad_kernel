@@ -1,0 +1,124 @@
+name: 一加Pad 2 Pro A16
+run-name: 一加Pad 2 Pro A16 / ${{ inputs.sukisu_profile }}
+on:
+  workflow_dispatch:
+    inputs:
+      sukisu_profile:
+        type: choice
+        description: "Root 与官方管理器配套版本//Paired root and official manager"
+        required: true
+        default: resukisu_35203
+        options:
+          - resukisu_35203
+          - ultra_41184
+      adios:
+        type: boolean
+        description: "编入 ADIOS I/O 调度（保留原默认调度）//Optional ADIOS I/O scheduler"
+        default: false
+      display_fix:
+        type: boolean
+        description: "显示兼容补丁（仅Pad 2 Pro A16；默认关闭）"
+        default: false
+      kpm:
+        type: choice
+        description: "内核模块实现方式//Kernel module implementation method"
+        required: true
+        default: N/A
+        options:
+          - KPM
+          - KPN
+          - N/A
+      build_time:
+        type: string
+        description: "自定义构建时间(输入F使用UTCT或-1关闭)//Custom build time (Enter F to use UTCT, or -1 to disable)"
+        required: false
+        default: "Wed Jul 15 11:18:49 UTC 2026"
+      lz4_update:
+        type: boolean
+        description: "升级内核LZ4实现（仅Pad 2 Pro；不直接升级lz4kd，默认关闭）"
+        required: true
+        default: false
+      zram:
+        type: string
+        description: "ZRAM：system保留原厂；自定义填1/算法/字节数，需另装生成的模块（仅Pad 2 Pro）"
+        required: true
+        default: "system"
+      suffix:
+        type: string
+        description: "自定义内核后缀(不输入使用RAND_STR或-1关闭)//Custom kernel suffix (Leave blank to use RAND_STR, or -1 to disable)"
+        required: false
+        default: ""
+      resublevel:
+        type: string
+        description: "自定义内核等级欺骗(SUBLEVEL)//Custom kernel SUBLEVEL spoofing"
+        required: false
+        default: ""
+      fast_build:
+        type: boolean
+        description: "是否启用极速构建？//Enable ultra-fast build?"
+        required: true
+        default: true
+      lsm_bbg:
+        type: boolean
+        description: "是否启用关键分区写入保护模块(BBG)？//Enable critical partition write protection module (BBG)?"
+        required: true
+        default: true
+      netfilter:
+        type: boolean
+        description: "是否启用网络功能拓展(NETFILTER)？//Enable network feature extensions (NETFILTER)?"
+        required: true
+        default: true
+      ccm:
+        type: boolean
+        description: "TCP网络扩展（Pad 2 Pro含BBRv3；Pad 3 Pro含BBR，不保证游戏降延迟）"
+        required: true
+        default: true
+      unicode_bypass:
+        type: boolean
+        description: "修改Unicode不可见字符的文件名匹配规则（兼容性待验证，默认关闭）"
+        required: true
+        default: false
+      droid_spaces:
+        type: boolean
+        description: "是否添加轻量级Linux容器支持(DroidSpaces)？//Add lightweight Linux container support (DroidSpaces)?"
+        required: true
+        default: false
+      re_kernel:
+        type: boolean
+        description: "是否添加Re-Kernel？//Add Re-Kernel?"
+        required: true
+        default: false
+      space_noclean:
+        type: boolean
+        description: "是否停用空间清扫？//Disable workspace cleaning?"
+        required: true
+        default: false
+      build_nocache:
+        type: boolean
+        description: "是否停用此次缓存？//Disable caching for this build?"
+        required: true
+        default: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/build_oneplus_pad.yml
+    with:
+      pad_target: "一加Pad 2 Pro A16"
+      sukisu_profile: ${{ inputs.sukisu_profile }}
+      adios: ${{ inputs.adios }}
+      display_fix: ${{ inputs.display_fix }}
+      kpm: ${{ inputs.kpm }}
+      build_time: ${{ inputs.build_time }}
+      lz4_update: ${{ inputs.lz4_update }}
+      zram: ${{ inputs.zram }}
+      suffix: ${{ inputs.suffix }}
+      resublevel: ${{ inputs.resublevel }}
+      fast_build: ${{ inputs.fast_build }}
+      lsm_bbg: ${{ inputs.lsm_bbg }}
+      netfilter: ${{ inputs.netfilter }}
+      ccm: ${{ inputs.ccm }}
+      unicode_bypass: ${{ inputs.unicode_bypass }}
+      droid_spaces: ${{ inputs.droid_spaces }}
+      re_kernel: ${{ inputs.re_kernel }}
+      space_noclean: ${{ inputs.space_noclean }}
+      build_nocache: ${{ inputs.build_nocache }}
