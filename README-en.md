@@ -53,7 +53,7 @@ Choose A15/A16 according to the installed OS. `RESUBLEVEL` changes only the disp
 
 Scripts and local patches always come from the checked-out workflow commit, without switching to upstream sources.
 The three entry workflows call the same `build_oneplus_pad.yml` implementation. GitHub cannot dynamically hide fields by selected target, so each entry exposes applicable options. Shared validation rejects unsupported combinations before downloads or disk cleanup.
-Use `Workflow and Cache Cleanup` to clean build history and caches.
+The **内部公共编译流程** shared workflow is called automatically by these entries and does not need to be run separately.
 
 | Option | Pad 2 Pro A15 | Pad 2 Pro A16 | Pad 3 Pro A16 |
 | --- | --- | --- | --- |

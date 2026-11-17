@@ -1,4 +1,4 @@
-name: Build OnePlus Pad Kernel (Reusable)
+name: 内部公共编译流程
 on:
   workflow_call:
     inputs:
